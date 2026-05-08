@@ -642,7 +642,49 @@ class Builder {
         });
       });
 
+      this._addSwipeDelete(row, i);
       this.elList.appendChild(row);
+    });
+  }
+
+  // ── Swipe-left-to-delete on touch devices ─────────────────────
+  // Only activates on coarse-pointer (touch) devices; mouse skips.
+  _addSwipeDelete(row, i) {
+    if (window.matchMedia('(pointer: fine)').matches) return;
+    let startX = 0;
+    let tracking = false;
+
+    row.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      tracking = true;
+      row.style.transition = 'none';
+    }, { passive: true });
+
+    row.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const dx = e.touches[0].clientX - startX;
+      if (dx >= 0) { row.style.transform = ''; return; } // right-swipe: ignore
+      const clamped = Math.max(dx, -88);
+      row.style.transform = `translateX(${clamped}px)`;
+      row.classList.toggle('swipe-delete-ready', clamped <= -60);
+    }, { passive: true });
+
+    const _endSwipe = () => {
+      tracking = false;
+      row.style.transition = '';
+      if (row.classList.contains('swipe-delete-ready')) {
+        this.removeOperator(i);
+      } else {
+        row.style.transform = '';
+        row.classList.remove('swipe-delete-ready');
+      }
+    };
+    row.addEventListener('touchend',   _endSwipe);
+    row.addEventListener('touchcancel', () => {
+      tracking = false;
+      row.style.transition = '';
+      row.style.transform  = '';
+      row.classList.remove('swipe-delete-ready');
     });
   }
 
@@ -921,12 +963,12 @@ function initSettings() {
     });
   }
 
-  // Clear history
+  // Clear history — bottom-sheet on mobile, native confirm on desktop
   document.getElementById('btn-clear-history')?.addEventListener('click', () => {
-    if (confirm('Permanently clear all search history?')) {
+    _mobileConfirm('Permanently clear all search history? This cannot be undone.', () => {
       HistoryStore.clear();
       renderHistory();
-    }
+    });
   });
 }
 
@@ -956,7 +998,14 @@ function initExport() {
   document.getElementById('btn-export-url')?.addEventListener('click', () => {
     const q   = window.builder?.buildQuery().trim() || '';
     const url = `${location.origin}${location.pathname}#q=${encodeURIComponent(q)}`;
-    _clipboardWrite(url, 'btn-export-url', 'COPIED!');
+    // On mobile use native share sheet if available; fall back to clipboard
+    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+      navigator.share({ title: 'DorkForge Query', text: q, url }).catch(() => {
+        _clipboardWrite(url, 'btn-export-url', 'COPIED!');
+      });
+    } else {
+      _clipboardWrite(url, 'btn-export-url', 'COPIED!');
+    }
   });
 }
 
@@ -1832,6 +1881,104 @@ const TemplateManager = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// MOBILE CONFIRM — bottom sheet on touch, native confirm on desktop
+// ══════════════════════════════════════════════════════════════
+function _mobileConfirm(msg, onConfirm) {
+  if (!window.matchMedia('(pointer: coarse)').matches) {
+    if (window.confirm(msg)) onConfirm();
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'bottom-sheet-overlay';
+  overlay.innerHTML = `
+    <div class="bottom-sheet" role="dialog" aria-modal="true">
+      <p class="bottom-sheet-msg">${_esc(msg)}</p>
+      <button class="btn bottom-sheet-confirm">CONFIRM</button>
+      <button class="btn bottom-sheet-cancel">CANCEL</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.bottom-sheet-confirm').addEventListener('click', () => { close(); onConfirm(); });
+  overlay.querySelector('.bottom-sheet-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+}
+
+// ══════════════════════════════════════════════════════════════
+// MOBILE INIT — runs only on touch/small-screen sessions
+// ══════════════════════════════════════════════════════════════
+const ENGINE_ABBREVS = {
+  google: 'GGL', duckduckgo: 'DDG', bing: 'BING', shodan: 'SHDN',
+  github: 'GH', urlscan: 'URL', archive: 'ARC', censys: 'CENS',
+  pastebin: 'PB', truepeoplesearch: 'TPS', whitepages: 'WP', fastpeoplesearch: 'FPS',
+};
+
+function initMobile() {
+  // ── Engine pill abbreviations ───────────────────────────────
+  document.querySelectorAll('.engine-checkbox').forEach(cb => {
+    const span = cb.closest('.engine-toggle')?.querySelector('.engine-name');
+    if (span) {
+      const abbr = ENGINE_ABBREVS[cb.dataset.engine] || cb.dataset.engine.slice(0, 4).toUpperCase();
+      span.dataset.abbr = abbr;
+      span.title = span.textContent.trim(); // full name as tooltip on long-press
+    }
+  });
+
+  // ── Collapsible LIVE PREVIEW on mobile ──────────────────────
+  // Only applies when viewport is narrow; skips if already set up
+  if (!window.matchMedia('(max-width: 767px)').matches) return;
+
+  const previewTitleEl = [...document.querySelectorAll('.builder-right .section-title')]
+    .find(el => el.textContent.trim() === 'LIVE PREVIEW');
+  if (previewTitleEl) {
+    const header  = previewTitleEl.closest('.section-header');
+    const preview = document.getElementById('query-preview');
+    const copyBtn = document.getElementById('btn-copy-query');
+
+    // Wrap preview + copy button in an animated container
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-collapsible';
+    wrap.style.maxHeight = '0px'; // start collapsed
+    preview.insertAdjacentElement('beforebegin', wrap);
+    wrap.appendChild(preview);
+    wrap.appendChild(copyBtn);
+
+    header.classList.add('preview-collapse-header', 'collapsed');
+    header.setAttribute('role', 'button');
+    header.setAttribute('tabindex', '0');
+
+    const toggle = () => {
+      const collapsed = header.classList.contains('collapsed');
+      if (collapsed) {
+        wrap.style.maxHeight = wrap.scrollHeight + 48 + 'px'; // +48 for copy btn
+        header.classList.remove('collapsed');
+      } else {
+        wrap.style.maxHeight = '0px';
+        header.classList.add('collapsed');
+      }
+    };
+    header.addEventListener('click', toggle);
+    header.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') toggle(); });
+  }
+
+  // ── Sticky LAUNCH: track virtual keyboard height via visualViewport ──
+  const launchBtn = document.getElementById('btn-launch');
+  const launchLog = document.getElementById('launch-log');
+  if (window.visualViewport && launchBtn) {
+    const reposition = () => {
+      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      // Distance from visualViewport bottom to window bottom = keyboard height
+      const kbH = Math.max(0,
+        window.innerHeight - (window.visualViewport.height + window.visualViewport.offsetTop)
+      );
+      launchBtn.style.bottom = `${kbH}px`;
+      if (launchLog) launchLog.style.bottom = `${kbH + 56}px`;
+    };
+    window.visualViewport.addEventListener('resize', reposition);
+    window.visualViewport.addEventListener('scroll', reposition);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -1842,6 +1989,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.builder = new Builder();
   TemplateManager.init();
   renderHistory();
+  initMobile();
 
   // Restore query from share URL hash  (#q=site:example.com+...)
   if (location.hash.startsWith('#q=')) {

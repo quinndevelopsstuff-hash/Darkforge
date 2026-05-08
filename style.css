@@ -1264,3 +1264,424 @@ select:disabled {
   color: var(--amber-dim);
   letter-spacing: -4px;
 }
+
+/* ============================================================
+   RESPONSIVE — TABLET (768 – 1023px)
+   ============================================================ */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Builder: equal columns */
+  .builder-left  { width: 50%; }
+  .builder-right { flex: 1; }
+
+  /* Templates: 2-col grid, narrower sidebar */
+  .template-grid    { grid-template-columns: repeat(2, 1fr); }
+  .template-sidebar { width: 160px; }
+}
+
+/* ============================================================
+   RESPONSIVE — MOBILE (≤ 767px)
+   ============================================================ */
+
+/* ── Global touch helpers ────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Touch-action on all interactive elements prevents double-tap zoom */
+  button, input, select, label, a { touch-action: manipulation; }
+
+  /* Lift font floor */
+  body { font-size: 12px; }
+
+  /* Override topbar height for 2-row layout */
+  :root { --topbar-h: 76px; }
+  #main-content { height: calc(100dvh - 76px); height: calc(100vh - 76px); }
+
+  /* ── TOP BAR: 2-row layout ─────────────────────────────────── */
+  #topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 12px;
+    gap: 0;
+    align-items: stretch;
+  }
+
+  #topbar-logo {
+    padding: 10px 0;
+    flex: 1;
+    align-self: center;
+  }
+
+  #topbar-version {
+    padding: 10px 0;
+    align-self: center;
+  }
+
+  /* Tab bar fills row 2, scrolls horizontally */
+  #tab-nav {
+    width: 100%;
+    order: 3;
+    height: 36px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    border-top: 1px solid var(--border);
+    gap: 0;
+  }
+  #tab-nav::-webkit-scrollbar { display: none; }
+
+  /* Short labels via data-short + CSS content trick */
+  .tab-btn {
+    font-size: 0;           /* hide full text node */
+    padding: 0 16px;
+    min-width: 44px;
+    flex-shrink: 0;
+    height: 36px;
+  }
+  .tab-btn::after {
+    content: attr(data-short);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    font-family: var(--font);
+    color: inherit;
+  }
+
+  /* ── PANELS ──────────────────────────────────────────────────── */
+  .tab-panel { padding: 12px; }
+
+  /* ── BUILDER ─────────────────────────────────────────────────── */
+  /* Single column */
+  .builder-layout {
+    flex-direction: column;
+    border: none;
+    gap: 0;
+  }
+
+  .builder-left {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+    overflow: visible;
+    max-height: none;
+  }
+
+  .builder-right {
+    flex: unset;
+    width: 100%;
+    padding: 12px;
+    padding-bottom: 72px; /* clear fixed LAUNCH button */
+    overflow-y: auto;
+  }
+
+  /* Add-operator row: stacked vertically */
+  .add-operator-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .op-select        { flex: none; width: 100%; }
+  .op-value-input   { width: 100%; }
+  .btn-add          { width: 100%; min-height: 44px; }
+
+  /* Prevent iOS auto-zoom on input focus (requires 16px) */
+  input[type="text"],
+  select,
+  .tps-input,
+  .template-search { font-size: 16px !important; }
+
+  /* ── Collapsible LIVE PREVIEW (JS sets up wrapper + class) ──── */
+  .preview-collapse-header {
+    cursor: pointer;
+    user-select: none;
+  }
+  .preview-collapse-header::after {
+    content: ' [−]';
+    font-size: 10px;
+    color: var(--text-dim);
+    font-style: normal;
+  }
+  .preview-collapse-header.collapsed::after { content: ' [+]'; }
+
+  .preview-collapsible {
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+
+  /* ── Engine toggles: horizontal pill-scroll bar ─────────────── */
+  .engine-grid {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  .engine-grid::-webkit-scrollbar { display: none; }
+
+  .engine-toggle {
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    min-height: 36px;
+    gap: 0;
+    transition: border-color 0.1s, background 0.1s;
+  }
+
+  /* Pill fills when checked — :has() is widely supported in 2025 */
+  .engine-toggle:has(input:checked) {
+    border-color: var(--amber);
+    background: var(--amber-faint);
+    box-shadow: var(--glow-amber);
+  }
+
+  /* Hide the [X] box; the whole pill is the affordance */
+  .engine-toggle-box { display: none; }
+
+  /* Show abbreviated label from data-abbr set by initMobile() */
+  .engine-name {
+    font-size: 0; /* hide full text */
+  }
+  .engine-name::after {
+    content: attr(data-abbr);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text);
+  }
+  .engine-toggle:has(input:checked) .engine-name::after { color: var(--amber); }
+
+  /* ── Sticky LAUNCH button ────────────────────────────────────── */
+  .btn-launch {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    margin: 0;
+    padding: 14px;
+    font-size: 14px;
+    z-index: 500;
+    /* JS (visualViewport) adjusts bottom offset when keyboard opens */
+  }
+
+  #launch-log {
+    position: fixed;
+    bottom: 56px;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 8px 16px;
+    z-index: 499;
+    /* JS also updates bottom to track keyboard */
+  }
+
+  /* ── Operator row swipe-to-delete states ─────────────────────── */
+  .operator-row {
+    position: relative;
+    overflow: visible; /* allow red glow to show */
+    transition: background 0.15s;
+  }
+  .operator-row.swipe-delete-ready {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: var(--red);
+    box-shadow: inset 0 0 0 1px var(--red);
+  }
+
+  /* ── TEMPLATES: horizontal category chips + single column grid ─ */
+  #panel-templates.panel-active { flex-direction: column; }
+  .templates-layout              { flex-direction: column; }
+
+  .template-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px;
+    overflow: visible;
+    flex-shrink: 0;
+  }
+
+  /* Hide "CATEGORIES" heading — redundant at chip level */
+  .template-sidebar .section-header { display: none; }
+  .template-search-wrap { margin-bottom: 8px; }
+
+  /* Category list → horizontal scrolling chip row */
+  .category-list {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    gap: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .category-list::-webkit-scrollbar { display: none; }
+  .category-list li { flex-shrink: 0; }
+
+  .category-btn {
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    padding: 5px 10px;
+    min-height: 32px;
+    gap: 4px;
+    border-left-width: 1px !important; /* cancel sidebar active-left-border */
+  }
+  .category-btn-active {
+    border-color: var(--amber) !important;
+    background: var(--amber-faint);
+  }
+  .cat-name { font-size: 10px; }
+  .cat-count { font-size: 9px; min-width: 16px; }
+  /* Hide icons in chip mode to save space */
+  .cat-icon { display: none; }
+
+  /* Template grid: single column */
+  .template-grid {
+    grid-template-columns: 1fr;
+    padding: 10px;
+    gap: 8px;
+    overflow-y: auto;
+  }
+
+  /* LOAD button: full-width, large tap target */
+  .card-footer { flex-direction: column; gap: 6px; align-items: stretch; }
+  .engine-badges { justify-content: flex-start; }
+  .card-btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 12px;
+    padding: 10px;
+  }
+
+  /* ── HISTORY: table → stacked cards ─────────────────────────── */
+  #panel-history.panel-active { overflow-y: auto; }
+  .history-table-wrap { border: none; overflow: visible; }
+
+  .history-table thead { display: none; }
+  .history-table,
+  .history-table tbody { display: block; width: 100%; }
+
+  .history-table tr {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: var(--panel-bg);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+
+  .history-table td {
+    display: block;
+    border: none;
+    padding: 0;
+    font-size: 12px;
+  }
+
+  .history-date    { font-size: 10px !important; color: var(--text-dim) !important; order: 1; }
+  .history-query   { order: 2; }
+  .history-engines { font-size: 10px !important; color: var(--text-dim) !important; order: 3; }
+
+  .history-query code { font-size: 11px; word-break: break-all; display: block; }
+
+  .history-actions {
+    order: 4;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .history-actions .btn { width: 100%; min-height: 44px; font-size: 12px; }
+
+  /* ── EXPORT: single column, big tap targets ──────────────────── */
+  .export-grid { grid-template-columns: 1fr; gap: 8px; }
+  .export-card .btn-export {
+    width: calc(100% - 28px);
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  /* ── SETTINGS ────────────────────────────────────────────────── */
+  .settings-list      { max-width: 100%; }
+  .settings-row       { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .settings-select    { width: 100%; }
+  #btn-clear-history  { width: 100%; min-height: 48px; }
+  .settings-engine-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* ── TPS people-search form: 2-col on mobile ─────────────────── */
+  .tps-fields { grid-template-columns: 1fr 1fr; }
+
+  /* ── Global tap targets ──────────────────────────────────────── */
+  .btn        { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .btn.btn-sm { min-height: 36px; }
+  .engine-toggle { min-height: 36px; }
+
+  /* ── Preview box: horizontal scroll for long dork strings ────── */
+  .query-preview {
+    overflow-x: auto;
+    white-space: pre;
+    word-break: normal;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Empty states: legible without zoom ──────────────────────── */
+  .empty-state-full { font-size: 14px; }
+  .empty-icon       { font-size: 36px; }
+  .template-empty-state { font-size: 13px; padding: 32px 16px; }
+
+  /* ── Shodan disclaimer full width ────────────────────────────── */
+  .shodan-disclaimer { flex-wrap: wrap; font-size: 11px; }
+
+  /* ── Bottom sheet (mobile confirm) ──────────────────────────── */
+  .bottom-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 9000;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .bottom-sheet {
+    background: #111;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    /* UX exception to no-border-radius rule: mobile sheet needs rounded top */
+    border-radius: 12px 12px 0 0 !important;
+    padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 28px);
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bottom-sheet-msg {
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+    font-family: var(--font);
+  }
+
+  .bottom-sheet-confirm {
+    border-color: var(--red);
+    color: var(--red);
+    min-height: 48px;
+    width: 100%;
+  }
+  .bottom-sheet-confirm:hover,
+  .bottom-sheet-confirm:active {
+    background: var(--red);
+    color: #fff;
+    box-shadow: var(--glow-red);
+  }
+
+  .bottom-sheet-cancel { min-height: 48px; width: 100%; }
+
+  /* ── Hover → also :active on mobile (no hover available) ──────── */
+  .btn:active         { background: var(--amber); color: #000; box-shadow: var(--glow-amber); }
+  .btn-add:active     { background: var(--green);  color: #000; box-shadow: var(--glow-green); }
+  .btn-launch:active  { filter: brightness(0.9); }
+  .bottom-sheet-confirm:active { background: var(--red); color: #fff; }
+}
