@@ -1941,3 +1941,81 @@ select:disabled {
 /* ── Prevent old mobile pill CSS from affecting rich rows ────── */
 .engine-toggle-rich .engine-name { font-size: 0.72rem !important; }
 .engine-toggle-rich .engine-toggle-box { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════════
+   TEMPLATE CARD BADGE — GENERIC / SITE-SPECIFIC
+   ══════════════════════════════════════════════════════════════ */
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.card-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 5px;
+  border: 1px solid;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.card-badge-generic {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.card-badge-site {
+  color: var(--green);
+  border-color: var(--green);
+  background: rgba(0, 255, 128, 0.06);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PERSON SUBCATEGORY FILTER BAR
+   ══════════════════════════════════════════════════════════════ */
+
+.person-subcat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.subcat-btn {
+  padding: 3px 9px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.subcat-btn:hover {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+.subcat-btn-active {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(255, 176, 0, 0.1);
+}
+
+@media (max-width: 767px) {
+  .person-subcat-bar { gap: 5px; }
+  .subcat-btn { padding: 5px 10px; font-size: 0.68rem; }
+}

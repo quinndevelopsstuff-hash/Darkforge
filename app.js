@@ -14,6 +14,13 @@ const OPERATORS = {
     description: 'Restrict results to a specific domain',
     placeholder: 'example.com',
   },
+  site_exclude: {
+    label: '-site:',
+    syntax: '-site:{value}',
+    engines: ['google', 'duckduckgo', 'bing'],
+    description: 'Exclude a specific domain from results',
+    placeholder: 'example.com',
+  },
   filetype: {
     label: 'filetype:',
     syntax: 'filetype:{value}',
@@ -1425,6 +1432,462 @@ const TEMPLATES = [
       {type:'exact',value:'property records'},{type:'exact',value:'assessor'},
     ]},
 
+  // ── PERSON OSINT — Name + Location ──────────────────────────
+  { id: 'pn-name-basic', name: 'Basic Name Search', category: 'person', subcategory: 'name-location',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Generic search — finds any indexed page mentioning the person in that location.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+    ]},
+  { id: 'pn-name-no-social', name: 'Name + Location (Exclude Social)', category: 'person', subcategory: 'name-location',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Surfaces non-social results — news, forums, and local directories.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'site_exclude',value:'facebook.com'},
+      {type:'site_exclude',value:'linkedin.com'},
+      {type:'site_exclude',value:'twitter.com'},
+    ]},
+  { id: 'pn-name-pdf', name: 'Name in PDF Documents', category: 'person', subcategory: 'name-location',
+    engines: ['google','bing'],
+    description: 'Court filings, public records, and org docs mentioning the person.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'filetype',value:'pdf'},
+    ]},
+  { id: 'pn-name-spreadsheet', name: 'Name in Spreadsheets / CSVs', category: 'person', subcategory: 'name-location',
+    engines: ['google','bing'],
+    description: 'Employee lists, donor records, and public salary databases.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'filetype',value:'xlsx'},
+      {type:'OR',value:''},
+      {type:'filetype',value:'csv'},
+      {type:'OR',value:''},
+      {type:'filetype',value:'xls'},
+    ]},
+  { id: 'pn-name-employer', name: 'Name + Employer', category: 'person', subcategory: 'name-location',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds directory pages, bios, and press mentions tied to employer.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[EMPLOYER]'},
+      {type:'exact',value:'[CITY]'},
+    ]},
+  { id: 'pn-name-age', name: 'Name + Age Confirmation', category: 'person', subcategory: 'name-location',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Narrows results to likely matches by including age.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[AGE]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+    ]},
+
+  // ── PERSON OSINT — Phone Numbers ──────────────────────────────
+  { id: 'pn-phone-generic', name: 'Phone Number — Generic', category: 'person', subcategory: 'phone',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Raw phone search — finds any indexed page containing the number.',
+    operators: [
+      {type:'exact',value:'[PHONE]'},
+    ]},
+  { id: 'pn-phone-variants', name: 'Phone in Formatted Variants', category: 'person', subcategory: 'phone',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Searches all three common US phone formats simultaneously. Replace example digits in all three rows.',
+    operators: [
+      {type:'intext',value:'(555) 123-4567'},
+      {type:'OR',value:''},
+      {type:'intext',value:'555-123-4567'},
+      {type:'OR',value:''},
+      {type:'intext',value:'5551234567'},
+    ]},
+  { id: 'pn-phone-name', name: 'Phone + Name Confirmation', category: 'person', subcategory: 'phone',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Confirms a phone number belongs to the target person.',
+    operators: [
+      {type:'exact',value:'[PHONE]'},
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    ]},
+  { id: 'pn-phone-docs', name: 'Phone in Documents', category: 'person', subcategory: 'phone',
+    engines: ['google','bing'],
+    description: 'Finds phone number in public records, org docs, and exported databases.',
+    operators: [
+      {type:'exact',value:'[PHONE]'},
+      {type:'filetype',value:'pdf'},
+      {type:'OR',value:''},
+      {type:'filetype',value:'xlsx'},
+    ]},
+  { id: 'pn-phone-paste', name: 'Phone on Paste / Forum Sites', category: 'person', subcategory: 'phone',
+    engines: ['google'],
+    description: 'Checks if the number appears in pastes or public forum posts.',
+    operators: [
+      {type:'exact',value:'[PHONE]'},
+      {type:'site',value:'pastebin.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'reddit.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'quora.com'},
+    ]},
+
+  // ── PERSON OSINT — Email Addresses ────────────────────────────
+  { id: 'pn-email-raw', name: 'Email — Raw Search', category: 'person', subcategory: 'email',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Any indexed page containing the email address.',
+    operators: [
+      {type:'exact',value:'[EMAIL]'},
+    ]},
+  { id: 'pn-email-name', name: 'Email + Name Verification', category: 'person', subcategory: 'email',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Confirms an email address belongs to the target person.',
+    operators: [
+      {type:'exact',value:'[EMAIL]'},
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    ]},
+  { id: 'pn-email-domain', name: 'Email Domain Pattern', category: 'person', subcategory: 'email',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds work email on employer domain even if exact address is unknown.',
+    operators: [
+      {type:'exact',value:'@[DOMAIN]'},
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    ]},
+  { id: 'pn-email-paste', name: 'Email in Leaked Data (Paste Sites)', category: 'person', subcategory: 'email',
+    engines: ['google'],
+    description: 'Checks public paste sites for leaked credential dumps containing the email.',
+    operators: [
+      {type:'exact',value:'[EMAIL]'},
+      {type:'site',value:'pastebin.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'ghostbin.com'},
+    ]},
+  { id: 'pn-email-docs', name: 'Email in Documents', category: 'person', subcategory: 'email',
+    engines: ['google','bing'],
+    description: 'Finds address in exported org lists and public records.',
+    operators: [
+      {type:'exact',value:'[EMAIL]'},
+      {type:'filetype',value:'pdf'},
+      {type:'OR',value:''},
+      {type:'filetype',value:'xlsx'},
+      {type:'OR',value:''},
+      {type:'filetype',value:'csv'},
+    ]},
+  { id: 'pn-username-dev', name: 'Email Username Across Dev Platforms', category: 'person', subcategory: 'email',
+    engines: ['google'],
+    description: 'Uses email prefix as username — finds dev profiles and forum accounts.',
+    operators: [
+      {type:'exact',value:'[USERNAME]'},
+      {type:'site',value:'github.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'gitlab.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'stackoverflow.com'},
+    ]},
+
+  // ── PERSON OSINT — Home / Work Addresses ──────────────────────
+  { id: 'pn-address-generic', name: 'Address — Generic', category: 'person', subcategory: 'address',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds any indexed page mentioning the full address.',
+    operators: [
+      {type:'exact',value:'[ADDRESS]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+    ]},
+  { id: 'pn-address-records', name: 'Address in Public Records', category: 'person', subcategory: 'address',
+    engines: ['google','bing'],
+    description: 'Property records, court docs, and permit filings by address.',
+    operators: [
+      {type:'exact',value:'[ADDRESS]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'filetype',value:'pdf'},
+    ]},
+  { id: 'pn-address-name', name: 'Address + Name Confirmation', category: 'person', subcategory: 'address',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Confirms a person lives or works at the given address.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[ADDRESS]'},
+      {type:'exact',value:'[CITY]'},
+    ]},
+  { id: 'pn-address-business', name: 'Business Address Lookup', category: 'person', subcategory: 'address',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds employer address via their own contact or about pages.',
+    operators: [
+      {type:'exact',value:'[EMPLOYER]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'inurl',value:'contact'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'about'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'location'},
+    ]},
+  { id: 'pn-address-neighbors', name: 'Neighbor / Address Range', category: 'person', subcategory: 'address',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds nearby addresses on the same street — useful for mapping associates.',
+    operators: [
+      {type:'exact',value:'[STREET NAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'intext_exclude',value:'[ADDRESS]'},
+    ]},
+
+  // ── PERSON OSINT — Social Media Profiles ──────────────────────
+  { id: 'pn-social-username-major', name: 'Username Sweep — Major Platforms', category: 'person', subcategory: 'social',
+    engines: ['google'],
+    description: 'Finds username across Twitter, Instagram, TikTok, Reddit, and Facebook.',
+    operators: [
+      {type:'exact',value:'[USERNAME]'},
+      {type:'site',value:'twitter.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'instagram.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'tiktok.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'reddit.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'facebook.com'},
+    ]},
+  { id: 'pn-social-username-dev', name: 'Username Sweep — Dev & Professional', category: 'person', subcategory: 'social',
+    engines: ['google'],
+    description: 'Finds username on GitHub, GitLab, LinkedIn, StackOverflow, and Medium.',
+    operators: [
+      {type:'exact',value:'[USERNAME]'},
+      {type:'site',value:'github.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'gitlab.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'linkedin.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'stackoverflow.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'medium.com'},
+    ]},
+  { id: 'pn-social-username-forums', name: 'Username Sweep — Forums & Misc', category: 'person', subcategory: 'social',
+    engines: ['google'],
+    description: 'Finds username on Reddit, Quora, Disqus, and WordPress.',
+    operators: [
+      {type:'exact',value:'[USERNAME]'},
+      {type:'site',value:'reddit.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'quora.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'disqus.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'wordpress.com'},
+    ]},
+  { id: 'pn-social-linkedin', name: 'Full Name on LinkedIn', category: 'person', subcategory: 'social',
+    engines: ['google','bing'],
+    description: 'Finds LinkedIn profile pages for the target name.',
+    operators: [
+      {type:'intitle',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'site',value:'linkedin.com/in'},
+    ]},
+  { id: 'pn-social-facebook', name: 'Full Name on Facebook', category: 'person', subcategory: 'social',
+    engines: ['google','bing'],
+    description: 'Finds Facebook profile and group pages by full name.',
+    operators: [
+      {type:'intitle',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'site',value:'facebook.com'},
+    ]},
+  { id: 'pn-social-twitter', name: 'Full Name on Twitter / X', category: 'person', subcategory: 'social',
+    engines: ['google','bing'],
+    description: 'Finds Twitter and X profile pages for the target name.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'site',value:'twitter.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'x.com'},
+    ]},
+  { id: 'pn-social-cached', name: 'Cached / Deleted Social Profiles', category: 'person', subcategory: 'social',
+    engines: ['google'],
+    description: "Fetches Google's cached copy of social profiles — useful for deleted accounts.",
+    operators: [
+      {type:'cache',value:'twitter.com/[USERNAME]'},
+      {type:'OR',value:''},
+      {type:'cache',value:'instagram.com/[USERNAME]'},
+    ]},
+  { id: 'pn-social-niche', name: 'Name on Niche Community Platforms', category: 'person', subcategory: 'social',
+    engines: ['google'],
+    description: 'Finds name on Meetup, Nextdoor, and Alignable community platforms.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'site',value:'meetup.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'nextdoor.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'alignable.com'},
+    ]},
+
+  // ── PERSON OSINT — Family Members & Associates ────────────────
+  { id: 'pn-assoc-family', name: 'Family Name Cluster', category: 'person', subcategory: 'associates',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds pages listing multiple people with the same last name and location.',
+    operators: [
+      {type:'exact',value:'[LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'exact',value:'[FIRSTNAME]'},
+    ]},
+  { id: 'pn-assoc-obituary', name: 'Obituary / Family Mention', category: 'person', subcategory: 'associates',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Obituaries often list surviving family members — surfaces spouse and children.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'intitle',value:'obituary'},
+      {type:'OR',value:''},
+      {type:'intext',value:'obituary'},
+    ]},
+  { id: 'pn-assoc-wedding', name: 'Wedding / Engagement Announcements', category: 'person', subcategory: 'associates',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Surfaces spouse names and family details from wedding and engagement notices.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'intitle',value:'wedding'},
+      {type:'OR',value:''},
+      {type:'intitle',value:'engagement'},
+      {type:'OR',value:''},
+      {type:'intext',value:'married'},
+    ]},
+  { id: 'pn-assoc-forum', name: 'Forum Mentions of Associates', category: 'person', subcategory: 'associates',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds forum posts mentioning the target alongside relationship keywords.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'intext',value:'friend'},
+      {type:'OR',value:''},
+      {type:'intext',value:'brother'},
+      {type:'OR',value:''},
+      {type:'intext',value:'sister'},
+      {type:'OR',value:''},
+      {type:'intext',value:'partner'},
+    ]},
+
+  // ── PERSON OSINT — Employment History ─────────────────────────
+  { id: 'pn-employ-current', name: 'Current Employer Confirmation', category: 'person', subcategory: 'employment',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds bio and team pages listing the person at their employer.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[EMPLOYER]'},
+      {type:'inurl',value:'about'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'team'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'staff'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'bio'},
+    ]},
+  { id: 'pn-employ-linkedin', name: 'Past Employers via LinkedIn Cache', category: 'person', subcategory: 'employment',
+    engines: ['google','bing'],
+    description: 'LinkedIn profiles list full work history — indexed in page titles and meta.',
+    operators: [
+      {type:'intitle',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'site',value:'linkedin.com'},
+    ]},
+  { id: 'pn-employ-press', name: 'Name in Press Releases', category: 'person', subcategory: 'employment',
+    engines: ['google'],
+    description: 'Finds professional mentions on PR Newswire, BusinessWire, and GlobeNewswire.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[EMPLOYER]'},
+      {type:'site',value:'prnewswire.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'businesswire.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'globenewswire.com'},
+    ]},
+  { id: 'pn-employ-filings', name: 'Name in Company Filings', category: 'person', subcategory: 'employment',
+    engines: ['google'],
+    description: 'Finds the person in public government, SEC, and IRS filings.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'filetype',value:'pdf'},
+      {type:'site',value:'.gov'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'sec.gov'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'irs.gov'},
+    ]},
+  { id: 'pn-employ-license', name: 'Professional License / Certification Records', category: 'person', subcategory: 'employment',
+    engines: ['google'],
+    description: 'Finds professional licenses and certifications on state and federal registries.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'inurl',value:'license'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'registry'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'lookup'},
+      {type:'site',value:'.gov'},
+    ]},
+
+  // ── PERSON OSINT — Criminal & Court Records ───────────────────
+  { id: 'pn-criminal-court', name: 'Court Records — Generic', category: 'person', subcategory: 'criminal',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Finds court case pages mentioning the target name and state.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'inurl',value:'court'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'case'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'docket'},
+    ]},
+  { id: 'pn-criminal-pacer', name: 'PACER / Federal Court', category: 'person', subcategory: 'criminal',
+    engines: ['google'],
+    description: 'Searches CourtListener and PACER Monitor for federal court filings.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'site',value:'courtlistener.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'pacermonitor.com'},
+    ]},
+  { id: 'pn-criminal-offender', name: 'Sex Offender Registry', category: 'person', subcategory: 'criminal',
+    engines: ['google'],
+    description: 'Searches state sex offender registries on .gov domains.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'inurl',value:'offender'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'registry'},
+      {type:'site',value:'.gov'},
+    ]},
+  { id: 'pn-criminal-arrest', name: 'Arrest Records & Mugshots', category: 'person', subcategory: 'criminal',
+    engines: ['google','bing'],
+    description: 'Finds arrest records and mugshot sites for the target name and location.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[CITY]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'inurl',value:'arrest'},
+      {type:'OR',value:''},
+      {type:'inurl',value:'mugshot'},
+      {type:'OR',value:''},
+      {type:'intitle',value:'mugshot'},
+    ]},
+  { id: 'pn-criminal-bankruptcy', name: 'Bankruptcy Filings', category: 'person', subcategory: 'criminal',
+    engines: ['google'],
+    description: 'Finds bankruptcy filings on CourtListener and government sites.',
+    operators: [
+      {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+      {type:'exact',value:'[STATE]'},
+      {type:'inurl',value:'bankruptcy'},
+      {type:'site',value:'courtlistener.com'},
+      {type:'OR',value:''},
+      {type:'site',value:'.gov'},
+    ]},
+
   // ── COMPANY / ORG RECON ──────────────────────────────────────
   { id: 'company-employees', name: 'LinkedIn Employee Directory', category: 'company',
     engines: ['google','duckduckgo'],
@@ -1764,8 +2227,20 @@ const TEMPLATES = [
 // ══════════════════════════════════════════════════════════════
 // TEMPLATE MANAGER
 // ══════════════════════════════════════════════════════════════
+const PERSON_SUBCATEGORIES = [
+  { id: 'name-location', label: 'Name + Location' },
+  { id: 'phone',         label: 'Phone'           },
+  { id: 'email',         label: 'Email'           },
+  { id: 'address',       label: 'Address'         },
+  { id: 'social',        label: 'Social'          },
+  { id: 'associates',    label: 'Associates'      },
+  { id: 'employment',    label: 'Employment'      },
+  { id: 'criminal',      label: 'Criminal'        },
+];
+
 const TemplateManager = {
   activeCategory: 'all',
+  activeSubcategory: 'all',
   searchTerm: '',
 
   init() {
@@ -1819,15 +2294,50 @@ const TemplateManager = {
     list.querySelectorAll('.category-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this.activeCategory = btn.dataset.category;
+        this.activeSubcategory = 'all';
         this._buildSidebar();
         this._renderGrid();
       });
     });
   },
 
+  // ── Render subcategory pill bar (person category only) ───────
+  _renderSubcatBar() {
+    const existing = document.getElementById('person-subcat-bar');
+    if (existing) existing.remove();
+    if (this.activeCategory !== 'person' || this.searchTerm) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'person-subcat-bar';
+    bar.className = 'person-subcat-bar';
+
+    const allActive = this.activeSubcategory === 'all';
+    bar.innerHTML = `<button class="subcat-btn ${allActive ? 'subcat-btn-active' : ''}" data-subcat="all">All</button>` +
+      PERSON_SUBCATEGORIES.map(s => {
+        const active = this.activeSubcategory === s.id;
+        return `<button class="subcat-btn ${active ? 'subcat-btn-active' : ''}" data-subcat="${_esc(s.id)}">${_esc(s.label)}</button>`;
+      }).join('');
+
+    bar.querySelectorAll('.subcat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.activeSubcategory = btn.dataset.subcat;
+        this._renderSubcatBar();
+        const grid = document.getElementById('template-grid');
+        this._renderCards(grid);
+      });
+    });
+
+    document.getElementById('template-grid').insertAdjacentElement('beforebegin', bar);
+  },
+
   // ── Render template card grid ─────────────────────────────────
   _renderGrid() {
     const grid = document.getElementById('template-grid');
+    this._renderSubcatBar();
+    this._renderCards(grid);
+  },
+
+  _renderCards(grid) {
     const templates = this._filteredTemplates();
 
     if (!templates.length) {
@@ -1864,8 +2374,15 @@ const TemplateManager = {
       .map(id => ENGINES[id] ? `<span class="engine-badge">${_esc(ENGINES[id].label)}</span>` : '')
       .join('');
 
+    const hasSite   = t.operators.some(op => op.type === 'site');
+    const badgeCls  = hasSite ? 'card-badge-site' : 'card-badge-generic';
+    const badgeTxt  = hasSite ? 'SITE-SPECIFIC'   : 'GENERIC';
+
     return `<article class="template-card" data-category="${_esc(t.category)}">
-      <div class="card-header"><span class="card-cat-icon">${icon}</span>${_esc(t.name)}</div>
+      <div class="card-header">
+        <span class="card-cat-icon">${icon}</span>${_esc(t.name)}
+        <span class="card-badge ${badgeCls}">${badgeTxt}</span>
+      </div>
       <div class="card-body">
         <code class="card-query">${_esc(preview)}</code>
         <p class="card-desc">${_esc(t.description)}</p>
@@ -1901,6 +2418,9 @@ const TemplateManager = {
     let list = this._getFilteredBySearch();
     if (this.activeCategory !== 'all') {
       list = list.filter(t => t.category === this.activeCategory);
+    }
+    if (this.activeCategory === 'person' && this.activeSubcategory !== 'all' && !this.searchTerm) {
+      list = list.filter(t => t.subcategory === this.activeSubcategory);
     }
     return list;
   },
