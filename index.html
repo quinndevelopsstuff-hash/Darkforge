@@ -17,17 +17,33 @@
   <header id="topbar">
     <div id="topbar-logo">DORK<span class="logo-accent">FORGE</span></div>
 
-    <!-- JS: attach click listeners to .tab-btn elements, toggle .tab-active class -->
-    <nav id="tab-nav" role="tablist">
-      <button class="tab-btn tab-active" data-tab="builder"   data-short="B"    role="tab" aria-selected="true"  aria-controls="panel-builder">BUILDER</button>
-      <button class="tab-btn"            data-tab="templates" data-short="TPL"  role="tab" aria-selected="false" aria-controls="panel-templates">TEMPLATES</button>
-      <button class="tab-btn"            data-tab="history"   data-short="HIST" role="tab" aria-selected="false" aria-controls="panel-history">HISTORY</button>
-      <button class="tab-btn"            data-tab="export"    data-short="EXP"  role="tab" aria-selected="false" aria-controls="panel-export">EXPORT</button>
-      <button class="tab-btn"            data-tab="settings"  data-short="SET"  role="tab" aria-selected="false" aria-controls="panel-settings">SETTINGS</button>
-    </nav>
+    <!-- JS: current active tab label with blinking cursor -->
+    <div id="topbar-current">
+      <span id="topbar-current-text">&gt; BUILDER</span>
+    </div>
 
     <div id="topbar-version">v1.0</div>
+
+    <!-- JS: aria-expanded toggled by hamburger logic in initTabs() -->
+    <button id="nav-hamburger" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">
+      <span class="ham-line ham-top"></span>
+      <span class="ham-line ham-mid"></span>
+      <span class="ham-line ham-bot"></span>
+    </button>
   </header>
+
+  <!-- ============================================================
+       NAV MENU — dropdown panel, hidden until hamburger click
+       JS: [hidden] toggled, .nav-item-active tracks current tab
+       ============================================================ -->
+  <nav id="nav-menu" role="tablist" hidden>
+    <button class="nav-item nav-item-active" data-tab="builder"   role="tab" aria-selected="true"  aria-controls="panel-builder"><span class="nav-item-label">BUILDER</span></button>
+    <button class="nav-item"                 data-tab="templates" role="tab" aria-selected="false" aria-controls="panel-templates"><span class="nav-item-label">TEMPLATES</span></button>
+    <button class="nav-item"                 data-tab="history"   role="tab" aria-selected="false" aria-controls="panel-history"><span class="nav-item-label">HISTORY</span></button>
+    <button class="nav-item"                 data-tab="export"    role="tab" aria-selected="false" aria-controls="panel-export"><span class="nav-item-label">EXPORT</span></button>
+    <button class="nav-item"                 data-tab="settings"  role="tab" aria-selected="false" aria-controls="panel-settings"><span class="nav-item-label">SETTINGS</span></button>
+  </nav>
+  <div id="nav-backdrop" hidden></div>
 
   <!-- ============================================================
        MAIN CONTENT — JS: toggle .panel-active class on panels
@@ -130,83 +146,115 @@
             <span class="section-line"></span>
           </div>
 
-          <!-- JS: .engine-toggle checkboxes read by getSelectedEngines() -->
-          <div id="engine-grid" class="engine-grid">
+          <!-- JS: .engine-checkbox inputs read by getSelectedEngines() -->
+          <div id="engine-grid" class="engine-list-rich">
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="google" checked />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">Google</span>
-            </label>
-
-            <label class="engine-toggle">
-              <input type="checkbox" class="engine-checkbox" data-engine="duckduckgo" checked />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">DuckDuckGo</span>
-            </label>
-
-            <label class="engine-toggle">
-              <input type="checkbox" class="engine-checkbox" data-engine="bing" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">Bing</span>
-            </label>
-
-            <label class="engine-toggle shodan-engine">
-              <input type="checkbox" class="engine-checkbox" data-engine="shodan" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">
-                Shodan
-                <!-- JS: tooltip or inline warning -->
-                <span class="engine-warning" title="Free search only — full results require account">⚠</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Google</span>
+                <span class="engine-desc">Web search — best coverage for site: and filetype: operators</span>
               </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="engine-checkbox" data-engine="duckduckgo" checked />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">DuckDuckGo</span>
+                <span class="engine-desc">Privacy-focused web search with Google-style operators</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="engine-checkbox" data-engine="bing" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Bing</span>
+                <span class="engine-desc">Microsoft's web index — good for filetype: and site: queries</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich shodan-engine">
+              <input type="checkbox" class="engine-checkbox" data-engine="shodan" />
+              <span class="engine-icon engine-icon-warn">⚠</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Shodan</span>
+                <span class="engine-desc engine-desc-warn">Requires account for full results — IoT and device search</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="github" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">GitHub</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">GitHub</span>
+                <span class="engine-desc">Code search — path:, language:, and content operators</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="urlscan" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">URLScan</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">URLScan</span>
+                <span class="engine-desc">Website scanner — search by URL, IP, ASN, or domain</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="archive" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">Archive.org</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Archive.org</span>
+                <span class="engine-desc">Wayback Machine — historical snapshots of any URL</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="censys" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">Censys</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Censys</span>
+                <span class="engine-desc">Internet-wide scan data — certificates, hosts, domains</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="pastebin" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">Pastebin</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Pastebin</span>
+                <span class="engine-desc">Public paste search — leaked credentials and data dumps</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="truepeoplesearch" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">TruePeopleSearch</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">TruePeopleSearch</span>
+                <span class="engine-desc">US people records — name, address, phone lookup</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="whitepages" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">WhitePages</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">WhitePages</span>
+                <span class="engine-desc">US people directory — residential phone and address</span>
+              </span>
             </label>
 
-            <label class="engine-toggle">
+            <label class="engine-toggle-rich">
               <input type="checkbox" class="engine-checkbox" data-engine="fastpeoplesearch" />
-              <span class="engine-toggle-box"></span>
-              <span class="engine-name">FastPeopleSearch</span>
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">FastPeopleSearch</span>
+                <span class="engine-desc">US public records — name, phone, address aggregator</span>
+              </span>
             </label>
 
           </div><!-- /engine-grid -->
@@ -428,13 +476,116 @@
           <div class="settings-group-label">DEFAULT ENGINES</div>
           <div class="settings-group-desc">Engines pre-checked when the builder loads.</div>
           <!-- JS: .settings-engine-toggle checkboxes read by loadSettings() / saveSettings() -->
-          <div class="settings-engine-grid">
-            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="google" checked /><span class="engine-toggle-box"></span><span class="engine-name">Google</span></label>
-            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="duckduckgo" checked /><span class="engine-toggle-box"></span><span class="engine-name">DuckDuckGo</span></label>
-            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="bing" /><span class="engine-toggle-box"></span><span class="engine-name">Bing</span></label>
-            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="shodan" /><span class="engine-toggle-box"></span><span class="engine-name">Shodan</span></label>
-            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="github" /><span class="engine-toggle-box"></span><span class="engine-name">GitHub</span></label>
-            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="censys" /><span class="engine-toggle-box"></span><span class="engine-name">Censys</span></label>
+          <div class="engine-list-rich">
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="google" checked />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Google</span>
+                <span class="engine-desc">Web search — best coverage for site: and filetype: operators</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="duckduckgo" checked />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">DuckDuckGo</span>
+                <span class="engine-desc">Privacy-focused web search with Google-style operators</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="bing" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Bing</span>
+                <span class="engine-desc">Microsoft's web index — good for filetype: and site: queries</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich shodan-engine">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="shodan" />
+              <span class="engine-icon engine-icon-warn">⚠</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Shodan</span>
+                <span class="engine-desc engine-desc-warn">Requires account for full results — IoT and device search</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="github" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">GitHub</span>
+                <span class="engine-desc">Code search — path:, language:, and content operators</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="urlscan" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">URLScan</span>
+                <span class="engine-desc">Website scanner — search by URL, IP, ASN, or domain</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="archive" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Archive.org</span>
+                <span class="engine-desc">Wayback Machine — historical snapshots of any URL</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="censys" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Censys</span>
+                <span class="engine-desc">Internet-wide scan data — certificates, hosts, domains</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="pastebin" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">Pastebin</span>
+                <span class="engine-desc">Public paste search — leaked credentials and data dumps</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="truepeoplesearch" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">TruePeopleSearch</span>
+                <span class="engine-desc">US people records — name, address, phone lookup</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="whitepages" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">WhitePages</span>
+                <span class="engine-desc">US people directory — residential phone and address</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle-rich">
+              <input type="checkbox" class="settings-engine-toggle" data-engine="fastpeoplesearch" />
+              <span class="engine-icon">✦</span>
+              <span class="engine-label-wrap">
+                <span class="engine-name">FastPeopleSearch</span>
+                <span class="engine-desc">US public records — name, phone, address aggregator</span>
+              </span>
+            </label>
+
           </div>
         </div>
 

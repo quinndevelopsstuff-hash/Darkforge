@@ -1685,3 +1685,259 @@ select:disabled {
   .btn-launch:active  { filter: brightness(0.9); }
   .bottom-sheet-confirm:active { background: var(--red); color: #fff; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   HAMBURGER NAV — Fix 1
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Topbar current tab label ───────────────────────────────── */
+#topbar-current {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#topbar-current-text {
+  color: var(--amber);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Blinking _ cursor appended after the label text */
+#topbar-current-text::after {
+  content: '_';
+  color: var(--amber);
+  animation: blink-cursor 1s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ── Hamburger button ───────────────────────────────────────── */
+#nav-hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#nav-hamburger:hover { border-color: var(--amber); }
+#nav-hamburger:hover .ham-line { background: var(--amber); }
+
+.ham-line {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text-dim);
+  transition: transform 0.2s ease, opacity 0.15s ease;
+  transform-origin: center;
+}
+
+/* Animate to X when open */
+#nav-hamburger[aria-expanded="true"] .ham-top { transform: translateY(6px) rotate(45deg); background: var(--amber); }
+#nav-hamburger[aria-expanded="true"] .ham-mid { opacity: 0; }
+#nav-hamburger[aria-expanded="true"] .ham-bot { transform: translateY(-6px) rotate(-45deg); background: var(--amber); }
+
+/* ── Nav menu dropdown ──────────────────────────────────────── */
+#nav-menu {
+  position: absolute;
+  top: var(--topbar-h);
+  right: 0;
+  z-index: 200;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-top: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+
+#nav-menu[hidden] { display: none !important; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.nav-item:hover {
+  color: var(--amber);
+  background: rgba(255, 176, 0, 0.06);
+  border-left-color: var(--amber-dim);
+}
+
+.nav-item-active {
+  color: var(--amber);
+  border-left-color: var(--amber);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.nav-item-label { pointer-events: none; }
+
+/* ── Backdrop (click-outside to close) ─────────────────────── */
+#nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+}
+
+#nav-backdrop[hidden] { display: none !important; }
+
+/* ── Mobile: full-width slide-down nav ──────────────────────── */
+@media (max-width: 1023px) {
+  #nav-menu {
+    right: 0;
+    left: 0;
+    min-width: unset;
+    border-left: none;
+    border-right: none;
+  }
+
+  .nav-item {
+    padding: 13px 20px;
+    font-size: 0.8rem;
+    border-left-width: 3px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ENGINE TOGGLE RICH ROWS — Fix 2
+   ══════════════════════════════════════════════════════════════ */
+
+.engine-list-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.engine-toggle-rich {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--inset-bg);
+  border: 1px solid var(--border);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+
+.engine-toggle-rich:hover {
+  border-color: var(--border);
+  border-left-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.04);
+}
+
+/* Amber left border when checked */
+.engine-toggle-rich:has(input:checked) {
+  border-left-color: var(--amber);
+  background: rgba(255, 176, 0, 0.06);
+}
+
+.engine-toggle-rich input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  margin-top: 2px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.engine-toggle-rich input[type="checkbox"]::after {
+  content: 'X';
+  display: none;
+  position: absolute;
+  inset: 0;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--amber);
+  text-align: center;
+  line-height: 14px;
+  letter-spacing: 0;
+}
+
+.engine-toggle-rich input[type="checkbox"]:checked {
+  border-color: var(--amber);
+}
+
+.engine-toggle-rich input[type="checkbox"]:checked::after {
+  display: block;
+}
+
+.engine-icon {
+  font-size: 0.7rem;
+  color: var(--amber-dim);
+  flex-shrink: 0;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.engine-icon-warn {
+  color: var(--red);
+}
+
+.engine-label-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.engine-toggle-rich .engine-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.engine-toggle-rich:has(input:checked) .engine-name {
+  color: var(--amber);
+}
+
+.engine-desc {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.engine-desc-warn {
+  color: var(--red);
+  opacity: 0.85;
+}
+
+/* ── Prevent old mobile pill CSS from affecting rich rows ────── */
+.engine-toggle-rich .engine-name { font-size: 0.72rem !important; }
+.engine-toggle-rich .engine-toggle-box { display: none !important; }

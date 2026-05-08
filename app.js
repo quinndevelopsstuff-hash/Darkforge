@@ -931,21 +931,63 @@ function _loadQueryString(raw) {
 // ══════════════════════════════════════════════════════════════
 // TAB SWITCHING
 // ══════════════════════════════════════════════════════════════
+const TAB_LABELS = {
+  builder:   'BUILDER',
+  templates: 'TEMPLATES',
+  history:   'HISTORY',
+  export:    'EXPORT',
+  settings:  'SETTINGS',
+};
+
+function _closeNav() {
+  const menu     = document.getElementById('nav-menu');
+  const backdrop = document.getElementById('nav-backdrop');
+  const hamburger = document.getElementById('nav-hamburger');
+  if (menu)      menu.hidden = true;
+  if (backdrop)  backdrop.hidden = true;
+  if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
+}
+
 function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    const active = btn.dataset.tab === name;
-    btn.classList.toggle('tab-active', active);
-    btn.setAttribute('aria-selected', String(active));
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const active = item.dataset.tab === name;
+    item.classList.toggle('nav-item-active', active);
+    item.setAttribute('aria-selected', String(active));
   });
   document.querySelectorAll('.tab-panel').forEach(panel => {
     panel.classList.toggle('panel-active', panel.id === `panel-${name}`);
   });
+  const label = TAB_LABELS[name] || name.toUpperCase();
+  const el = document.getElementById('topbar-current-text');
+  if (el) el.textContent = `> ${label}`;
+  _closeNav();
   if (name === 'history') renderHistory();
 }
 
 function initTabs() {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  const hamburger = document.getElementById('nav-hamburger');
+  const menu      = document.getElementById('nav-menu');
+  const backdrop  = document.getElementById('nav-backdrop');
+
+  hamburger?.addEventListener('click', () => {
+    const isOpen = hamburger.getAttribute('aria-expanded') === 'true';
+    if (isOpen) {
+      _closeNav();
+    } else {
+      if (menu)     menu.hidden = false;
+      if (backdrop) backdrop.hidden = false;
+      hamburger.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  backdrop?.addEventListener('click', _closeNav);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') _closeNav();
+  });
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => switchTab(item.dataset.tab));
   });
 }
 
@@ -1875,8 +1917,8 @@ const TemplateManager = {
 
   // ── Update the tab button label with total count ──────────────
   _updateTabCount() {
-    const btn = document.querySelector('.tab-btn[data-tab="templates"]');
-    if (btn) btn.textContent = `TEMPLATES (${TEMPLATES.length})`;
+    const item = document.querySelector('.nav-item[data-tab="templates"] .nav-item-label');
+    if (item) item.textContent = `TEMPLATES (${TEMPLATES.length})`;
   },
 };
 
