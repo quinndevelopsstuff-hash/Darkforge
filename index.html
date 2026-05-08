@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DorkForge — OSINT Dork Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       TOP BAR — JS hooks: tab switching on [data-tab] buttons
+       ============================================================ -->
+  <header id="topbar">
+    <div id="topbar-logo">DORK<span class="logo-accent">FORGE</span></div>
+
+    <!-- JS: attach click listeners to .tab-btn elements, toggle .tab-active class -->
+    <nav id="tab-nav" role="tablist">
+      <button class="tab-btn tab-active" data-tab="builder"    role="tab" aria-selected="true"  aria-controls="panel-builder">BUILDER</button>
+      <button class="tab-btn"            data-tab="templates"  role="tab" aria-selected="false" aria-controls="panel-templates">TEMPLATES</button>
+      <button class="tab-btn"            data-tab="history"    role="tab" aria-selected="false" aria-controls="panel-history">HISTORY</button>
+      <button class="tab-btn"            data-tab="export"     role="tab" aria-selected="false" aria-controls="panel-export">EXPORT</button>
+      <button class="tab-btn"            data-tab="settings"   role="tab" aria-selected="false" aria-controls="panel-settings">SETTINGS</button>
+    </nav>
+
+    <div id="topbar-version">v1.0</div>
+  </header>
+
+  <!-- ============================================================
+       MAIN CONTENT — JS: toggle .panel-active class on panels
+       ============================================================ -->
+  <main id="main-content">
+
+    <!-- ===================== BUILDER TAB ===================== -->
+    <section id="panel-builder" class="tab-panel panel-active" role="tabpanel" aria-labelledby="tab-builder">
+      <div class="builder-layout">
+
+        <!-- LEFT COLUMN: Query Builder -->
+        <div class="builder-left">
+          <div class="section-header">
+            <span class="section-title">QUERY BUILDER</span>
+            <span class="section-line"></span>
+          </div>
+
+          <!-- JS: operator rows injected here by addOperator() -->
+          <div id="operator-list" class="operator-list">
+            <!-- JS: rendered .operator-row elements go here -->
+            <p id="operator-empty-state" class="empty-state">
+              No operators added yet. Use the row below to begin.
+            </p>
+          </div>
+
+          <!-- Add Operator Row — JS: reads #op-select, #op-value on #btn-add-op click -->
+          <div class="add-operator-row">
+            <select id="op-select" class="op-select" aria-label="Operator type">
+              <optgroup label="— Universal —">
+                <option value='site:'>site:</option>
+                <option value='inurl:'>inurl:</option>
+                <option value='intitle:'>intitle:</option>
+                <option value='intext:'>intext:</option>
+                <option value='filetype:'>filetype:</option>
+                <option value='ext:'>ext:</option>
+                <option value='link:'>link:</option>
+                <option value='cache:'>cache:</option>
+                <option value='related:'>related:</option>
+                <option value='OR'>OR</option>
+                <option value='AND'>AND</option>
+                <option value='-'>Exclude (−)</option>
+                <option value='"..."'>Exact phrase</option>
+              </optgroup>
+              <optgroup label="— Shodan —">
+                <option value='hostname:'>hostname:</option>
+                <option value='port:'>port:</option>
+                <option value='os:'>os:</option>
+                <option value='country:'>country:</option>
+                <option value='product:'>product:</option>
+                <option value='asn:'>asn:</option>
+                <option value='org:'>org:</option>
+                <option value='net:'>net:</option>
+              </optgroup>
+              <optgroup label="— GitHub —">
+                <option value='filename:'>filename:</option>
+                <option value='language:'>language:</option>
+                <option value='repo:'>repo:</option>
+                <option value='user:'>user:</option>
+                <option value='org:'>org:</option>
+                <option value='path:'>path:</option>
+                <option value='extension:'>extension:</option>
+              </optgroup>
+            </select>
+
+            <input
+              id="op-value"
+              type="text"
+              class="op-value-input"
+              placeholder="value…"
+              aria-label="Operator value"
+              autocomplete="off"
+              spellcheck="false"
+            />
+
+            <!-- JS: id="btn-add-op" click → addOperator() -->
+            <button id="btn-add-op" class="btn btn-add">+ ADD</button>
+          </div>
+        </div><!-- /builder-left -->
+
+        <!-- RIGHT COLUMN: Preview + Engines + Launch -->
+        <div class="builder-right">
+
+          <!-- Live Preview -->
+          <div class="section-header">
+            <span class="section-title">LIVE PREVIEW</span>
+            <span class="section-line"></span>
+          </div>
+
+          <!-- JS: id="query-preview" — updated by renderPreview() -->
+          <div id="query-preview" class="query-preview" aria-live="polite" aria-label="Constructed dork query">
+            <span class="preview-placeholder">site:example.com filetype:pdf</span>
+          </div>
+
+          <!-- JS: id="btn-copy-query" click → copyQuery() -->
+          <button id="btn-copy-query" class="btn btn-full">COPY QUERY</button>
+
+          <!-- Target Engines -->
+          <div class="section-header section-header-spaced">
+            <span class="section-title">TARGET ENGINES</span>
+            <span class="section-line"></span>
+          </div>
+
+          <!-- JS: .engine-toggle checkboxes read by getSelectedEngines() -->
+          <div id="engine-grid" class="engine-grid">
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="google" checked />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">Google</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="duckduckgo" checked />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">DuckDuckGo</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="bing" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">Bing</span>
+            </label>
+
+            <label class="engine-toggle shodan-engine">
+              <input type="checkbox" class="engine-checkbox" data-engine="shodan" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">
+                Shodan
+                <!-- JS: tooltip or inline warning -->
+                <span class="engine-warning" title="Free search only — full results require account">⚠</span>
+              </span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="github" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">GitHub</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="urlscan" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">URLScan</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="archive" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">Archive.org</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="censys" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">Censys</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="pastebin" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">Pastebin</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="truepeoplesearch" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">TruePeopleSearch</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="whitepages" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">WhitePages</span>
+            </label>
+
+            <label class="engine-toggle">
+              <input type="checkbox" class="engine-checkbox" data-engine="fastpeoplesearch" />
+              <span class="engine-toggle-box"></span>
+              <span class="engine-name">FastPeopleSearch</span>
+            </label>
+
+          </div><!-- /engine-grid -->
+
+          <!-- Shodan disclaimer — visible when Shodan is checked -->
+          <!-- JS: id="shodan-disclaimer" show/hide on shodan checkbox change -->
+          <div id="shodan-disclaimer" class="shodan-disclaimer" hidden>
+            <span class="disclaimer-icon">⚠</span>
+            Free search only — full results require a Shodan account.
+          </div>
+
+          <!-- JS: id="btn-launch" click → launchSearch() -->
+          <button id="btn-launch" class="btn btn-launch">LAUNCH</button>
+
+        </div><!-- /builder-right -->
+      </div><!-- /builder-layout -->
+    </section><!-- /panel-builder -->
+
+
+    <!-- ===================== TEMPLATES TAB ===================== -->
+    <section id="panel-templates" class="tab-panel" role="tabpanel" aria-labelledby="tab-templates">
+      <div class="templates-layout">
+
+        <!-- Category Sidebar — JS: .template-category-btn click → filterTemplates() -->
+        <aside id="template-sidebar" class="template-sidebar">
+          <div class="section-header">
+            <span class="section-title">CATEGORIES</span>
+            <span class="section-line"></span>
+          </div>
+          <ul class="category-list" id="category-list">
+            <!-- JS: category items injected or click-filtered -->
+            <li><button class="category-btn category-btn-active" data-category="all">All Templates</button></li>
+            <li><button class="category-btn" data-category="recon">Recon</button></li>
+            <li><button class="category-btn" data-category="exposure">Data Exposure</button></li>
+            <li><button class="category-btn" data-category="credentials">Credentials</button></li>
+            <li><button class="category-btn" data-category="infrastructure">Infrastructure</button></li>
+            <li><button class="category-btn" data-category="social">Social / OSINT</button></li>
+            <li><button class="category-btn" data-category="code">Code Leaks</button></li>
+            <li><button class="category-btn" data-category="documents">Documents</button></li>
+          </ul>
+        </aside>
+
+        <!-- Template Cards Grid — JS: #template-grid populated by renderTemplates() -->
+        <div id="template-grid" class="template-grid">
+          <!-- Placeholder cards — JS will replace with real data -->
+          <article class="template-card">
+            <div class="card-header">Exposed Admin Panels</div>
+            <div class="card-body">
+              <code class="card-query">intitle:"admin" inurl:"admin" site:.gov</code>
+              <p class="card-desc">Finds public-facing admin login panels on .gov domains.</p>
+            </div>
+            <div class="card-footer">
+              <span class="card-tag">Recon</span>
+              <!-- JS: data-query attr used by loadTemplate() -->
+              <button class="btn card-btn" data-query='intitle:"admin" inurl:"admin" site:.gov'>USE</button>
+            </div>
+          </article>
+
+          <article class="template-card">
+            <div class="card-header">Exposed .env Files</div>
+            <div class="card-body">
+              <code class="card-query">filetype:env "DB_PASSWORD"</code>
+              <p class="card-desc">Searches for exposed environment config files containing DB credentials.</p>
+            </div>
+            <div class="card-footer">
+              <span class="card-tag">Credentials</span>
+              <button class="btn card-btn" data-query='filetype:env "DB_PASSWORD"'>USE</button>
+            </div>
+          </article>
+
+          <article class="template-card">
+            <div class="card-header">Open Directory Listings</div>
+            <div class="card-body">
+              <code class="card-query">intitle:"Index of /" inurl:"/files"</code>
+              <p class="card-desc">Locates open Apache/Nginx directory listings with file indexes.</p>
+            </div>
+            <div class="card-footer">
+              <span class="card-tag">Data Exposure</span>
+              <button class="btn card-btn" data-query='intitle:"Index of /" inurl:"/files"'>USE</button>
+            </div>
+          </article>
+
+          <article class="template-card">
+            <div class="card-header">GitHub API Keys</div>
+            <div class="card-body">
+              <code class="card-query">filename:.env "API_KEY" language:python</code>
+              <p class="card-desc">Searches GitHub repos for Python projects with exposed API keys.</p>
+            </div>
+            <div class="card-footer">
+              <span class="card-tag">Code Leaks</span>
+              <button class="btn card-btn" data-query='filename:.env "API_KEY" language:python'>USE</button>
+            </div>
+          </article>
+
+          <article class="template-card">
+            <div class="card-header">Shodan Default Creds</div>
+            <div class="card-body">
+              <code class="card-query">product:"Apache httpd" port:80 country:US</code>
+              <p class="card-desc">Finds US-based Apache HTTP servers exposed on port 80.</p>
+            </div>
+            <div class="card-footer">
+              <span class="card-tag">Infrastructure</span>
+              <button class="btn card-btn" data-query='product:"Apache httpd" port:80 country:US'>USE</button>
+            </div>
+          </article>
+
+          <article class="template-card">
+            <div class="card-header">PDF Documents by Domain</div>
+            <div class="card-body">
+              <code class="card-query">site:example.com filetype:pdf</code>
+              <p class="card-desc">Enumerates all indexed PDF documents hosted on a target domain.</p>
+            </div>
+            <div class="card-footer">
+              <span class="card-tag">Documents</span>
+              <button class="btn card-btn" data-query='site:example.com filetype:pdf'>USE</button>
+            </div>
+          </article>
+        </div><!-- /template-grid -->
+
+      </div><!-- /templates-layout -->
+    </section><!-- /panel-templates -->
+
+
+    <!-- ===================== HISTORY TAB ===================== -->
+    <section id="panel-history" class="tab-panel" role="tabpanel" aria-labelledby="tab-history">
+      <div class="section-header">
+        <span class="section-title">SEARCH HISTORY</span>
+        <span class="section-line"></span>
+      </div>
+
+      <!-- JS: id="history-empty" shown when history array is empty -->
+      <div id="history-empty" class="empty-state-full">
+        <span class="empty-icon">//</span>
+        No history yet. Run a search to begin.
+      </div>
+
+      <!-- JS: id="history-table-wrap" shown when history has entries; tbody populated by renderHistory() -->
+      <div id="history-table-wrap" class="history-table-wrap" hidden>
+        <table id="history-table" class="history-table">
+          <thead>
+            <tr>
+              <th>DATE</th>
+              <th>QUERY</th>
+              <th>ENGINES</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
+          <!-- JS: history rows injected into #history-tbody -->
+          <tbody id="history-tbody">
+            <!-- Example row shape (generated by JS):
+            <tr>
+              <td class="history-date">2026-05-08 14:32</td>
+              <td class="history-query"><code>site:example.com filetype:pdf</code></td>
+              <td class="history-engines">Google, Bing</td>
+              <td class="history-actions">
+                <button class="btn btn-sm" data-action="rerun" data-id="0">Re-run</button>
+                <button class="btn btn-sm" data-action="edit"  data-id="0">Edit</button>
+                <button class="btn btn-sm btn-danger" data-action="delete" data-id="0">Delete</button>
+              </td>
+            </tr>
+            -->
+          </tbody>
+        </table>
+      </div>
+    </section><!-- /panel-history -->
+
+
+    <!-- ===================== EXPORT TAB ===================== -->
+    <section id="panel-export" class="tab-panel" role="tabpanel" aria-labelledby="tab-export">
+      <div class="section-header">
+        <span class="section-title">EXPORT</span>
+        <span class="section-line"></span>
+      </div>
+
+      <div class="export-grid">
+
+        <div class="export-card">
+          <div class="export-card-header">COPY AS TXT</div>
+          <div class="export-card-body">
+            Export the current query and all history entries as plain text, one query per line.
+          </div>
+          <!-- JS: id="btn-export-txt" click → exportTxt() -->
+          <button id="btn-export-txt" class="btn btn-export">COPY TXT</button>
+        </div>
+
+        <div class="export-card">
+          <div class="export-card-header">EXPORT AS JSON</div>
+          <div class="export-card-body">
+            Download history and current query as a structured JSON file for archival or import.
+          </div>
+          <!-- JS: id="btn-export-json" click → exportJson() -->
+          <button id="btn-export-json" class="btn btn-export">DOWNLOAD JSON</button>
+        </div>
+
+        <div class="export-card">
+          <div class="export-card-header">COPY SHARE URL</div>
+          <div class="export-card-body">
+            Encode the current query into a shareable URL fragment. No server required.
+          </div>
+          <!-- JS: id="btn-export-url" click → copyShareUrl() -->
+          <button id="btn-export-url" class="btn btn-export">COPY URL</button>
+        </div>
+
+      </div><!-- /export-grid -->
+    </section><!-- /panel-export -->
+
+
+    <!-- ===================== SETTINGS TAB ===================== -->
+    <section id="panel-settings" class="tab-panel" role="tabpanel" aria-labelledby="tab-settings">
+      <div class="section-header">
+        <span class="section-title">SETTINGS</span>
+        <span class="section-line"></span>
+      </div>
+
+      <div class="settings-list">
+
+        <!-- Default Engines -->
+        <div class="settings-group">
+          <div class="settings-group-label">DEFAULT ENGINES</div>
+          <div class="settings-group-desc">Engines pre-checked when the builder loads.</div>
+          <!-- JS: .settings-engine-toggle checkboxes read by loadSettings() / saveSettings() -->
+          <div class="settings-engine-grid">
+            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="google" checked /><span class="engine-toggle-box"></span><span class="engine-name">Google</span></label>
+            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="duckduckgo" checked /><span class="engine-toggle-box"></span><span class="engine-name">DuckDuckGo</span></label>
+            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="bing" /><span class="engine-toggle-box"></span><span class="engine-name">Bing</span></label>
+            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="shodan" /><span class="engine-toggle-box"></span><span class="engine-name">Shodan</span></label>
+            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="github" /><span class="engine-toggle-box"></span><span class="engine-name">GitHub</span></label>
+            <label class="engine-toggle"><input type="checkbox" class="settings-engine-toggle" data-engine="censys" /><span class="engine-toggle-box"></span><span class="engine-name">Censys</span></label>
+          </div>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Theme (future) -->
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <span class="settings-row-label">THEME</span>
+            <span class="settings-row-desc">Visual theme selection (future feature)</span>
+          </div>
+          <!-- JS: id="setting-theme" change → applyTheme() -->
+          <select id="setting-theme" class="op-select settings-select" disabled>
+            <option value="amber">Amber Terminal (default)</option>
+            <option value="green">Phosphor Green</option>
+            <option value="red">Red Alert</option>
+          </select>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Open Links -->
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <span class="settings-row-label">OPEN LINKS IN</span>
+            <span class="settings-row-desc">Where engine searches open</span>
+          </div>
+          <!-- JS: id="setting-link-target" change → saveLinkTarget() -->
+          <select id="setting-link-target" class="op-select settings-select">
+            <option value="_blank">New tab</option>
+            <option value="_self">Same tab</option>
+          </select>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Clear History -->
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <span class="settings-row-label">CLEAR HISTORY</span>
+            <span class="settings-row-desc">Permanently remove all saved searches</span>
+          </div>
+          <!-- JS: id="btn-clear-history" click → clearHistory() -->
+          <button id="btn-clear-history" class="btn btn-danger-outline">CLEAR HISTORY</button>
+        </div>
+
+      </div><!-- /settings-list -->
+    </section><!-- /panel-settings -->
+
+  </main><!-- /main-content -->
+
+  <script src="app.js"></script>
+</body>
+</html>
