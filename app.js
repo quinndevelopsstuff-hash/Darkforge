@@ -994,6 +994,844 @@ function _esc(str) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// CATEGORIES CONFIG
+// ══════════════════════════════════════════════════════════════
+const CATEGORIES = [
+  { id: 'auth',       icon: '🔐', label: 'Auth & Login' },
+  { id: 'documents',  icon: '📄', label: 'Exposed Documents' },
+  { id: 'directories',icon: '🗄️', label: 'Open Directories' },
+  { id: 'cameras',    icon: '📷', label: 'Cameras & IoT' },
+  { id: 'credentials',icon: '⚙️', label: 'Config & Credentials' },
+  { id: 'person',     icon: '🧑', label: 'Person OSINT' },
+  { id: 'company',    icon: '🏢', label: 'Company / Org Recon' },
+  { id: 'code',       icon: '💻', label: 'Code & Dev Secrets' },
+  { id: 'email',      icon: '📧', label: 'Email & Comms' },
+  { id: 'database',   icon: '🗃️', label: 'Database & Logs' },
+  { id: 'paste',      icon: '📰', label: 'Paste & Leak Sites' },
+  { id: 'infra',      icon: '🌐', label: 'Subdomain & Infra' },
+  { id: 'social',     icon: '📱', label: 'Social Media OSINT' },
+  { id: 'government', icon: '🏛️', label: 'Gov & Public Records' },
+  { id: 'people',     icon: '👤', label: 'People Search' },
+];
+
+// ══════════════════════════════════════════════════════════════
+// TEMPLATES DATA  (96 templates across 15 categories)
+// operators[] uses the same {type, value} format as Builder
+// ══════════════════════════════════════════════════════════════
+const TEMPLATES = [
+
+  // ── AUTH & LOGIN ─────────────────────────────────────────────
+  { id: 'auth-login-panels', name: 'Login Panels', category: 'auth',
+    engines: ['google','bing'],
+    description: 'Exposed login portals indexed by search engines.',
+    operators: [
+      {type:'intitle',value:'"Login"'}, {type:'inurl',value:'login'},
+    ]},
+  { id: 'auth-admin-portals', name: 'Admin Portals', category: 'auth',
+    engines: ['google','bing'],
+    description: 'Admin control panels exposed without authentication.',
+    operators: [
+      {type:'inurl',value:'admin'}, {type:'intitle',value:'"admin"'},
+    ]},
+  { id: 'auth-default-creds', name: 'Default Credentials Pages', category: 'auth',
+    engines: ['google','bing'],
+    description: 'Pages referencing default or factory login credentials.',
+    operators: [
+      {type:'intitle',value:'"default password"'},{type:'OR',value:''},
+      {type:'intitle',value:'"default credentials"'},{type:'OR',value:''},
+      {type:'intitle',value:'"factory default"'},
+    ]},
+  { id: 'auth-password-reset', name: 'Password Reset Pages', category: 'auth',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Exposed password reset and account recovery flows.',
+    operators: [
+      {type:'inurl',value:'"forgot-password"'},{type:'OR',value:''},
+      {type:'inurl',value:'"reset-password"'},{type:'OR',value:''},
+      {type:'inurl',value:'"account-recovery"'},
+    ]},
+  { id: 'auth-cpanel', name: 'cPanel / Plesk / WHM', category: 'auth',
+    engines: ['google','bing'],
+    description: 'Web hosting control panels (cPanel, Plesk, WHM) accessible online.',
+    operators: [
+      {type:'intitle',value:'"cPanel"'},{type:'OR',value:''},
+      {type:'intitle',value:'"Plesk"'},{type:'OR',value:''},
+      {type:'intitle',value:'"WHM"'},
+    ]},
+  { id: 'auth-owa', name: 'Outlook Web Access (OWA)', category: 'auth',
+    engines: ['google','bing'],
+    description: 'Outlook Web App login portals exposed on the public web.',
+    operators: [
+      {type:'intitle',value:'"Outlook Web App"'},
+    ]},
+  { id: 'auth-vpn', name: 'VPN Login Pages', category: 'auth',
+    engines: ['google','bing'],
+    description: 'SSL and Cisco VPN login pages reachable without a corporate tunnel.',
+    operators: [
+      {type:'intitle',value:'"SSL VPN"'},{type:'OR',value:''},
+      {type:'intitle',value:'"Cisco VPN"'},{type:'OR',value:''},
+      {type:'intitle',value:'"GlobalProtect"'},
+    ]},
+  { id: 'auth-phpmyadmin', name: 'phpMyAdmin Panels', category: 'auth',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Publicly accessible phpMyAdmin database administration panels.',
+    operators: [
+      {type:'intitle',value:'"phpMyAdmin"'},{type:'inurl',value:'phpmyadmin'},
+    ]},
+
+  // ── EXPOSED DOCUMENTS ────────────────────────────────────────
+  { id: 'docs-confidential', name: 'Confidential PDFs', category: 'documents',
+    engines: ['google','bing'],
+    description: 'Indexed PDFs marked confidential or for internal use only.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'exact',value:'confidential'},
+      {type:'OR',value:''},{type:'exact',value:'internal use only'},
+    ]},
+  { id: 'docs-excel-passwords', name: 'Excel Files with Passwords', category: 'documents',
+    engines: ['google','bing'],
+    description: 'Spreadsheets with password or credential column data.',
+    operators: [
+      {type:'filetype',value:'xlsx'},{type:'exact',value:'password'},
+      {type:'OR',value:''},{type:'exact',value:'credentials'},
+    ]},
+  { id: 'docs-memos', name: 'Internal Memos', category: 'documents',
+    engines: ['google','bing'],
+    description: 'Word documents marked as internal memos or restricted distribution.',
+    operators: [
+      {type:'filetype',value:'doc'},{type:'exact',value:'internal memo'},
+      {type:'OR',value:''},{type:'exact',value:'not for distribution'},
+    ]},
+  { id: 'docs-resumes', name: 'Resumes / CVs', category: 'documents',
+    engines: ['google','bing'],
+    description: 'Publicly indexed PDF resumes and CVs containing personal data.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'intitle',value:'resume'},
+      {type:'OR',value:''},{type:'intitle',value:'CV'},
+    ]},
+  { id: 'docs-invoices', name: 'Invoice Documents', category: 'documents',
+    engines: ['google','bing'],
+    description: 'Exposed invoice PDFs that may contain financial or client data.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'intitle',value:'invoice'},
+    ]},
+  { id: 'docs-network-diagrams', name: 'Network Diagrams', category: 'documents',
+    engines: ['google','bing'],
+    description: 'PDF network topology and infrastructure diagrams exposed publicly.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'exact',value:'network diagram'},
+      {type:'OR',value:''},{type:'exact',value:'topology'},
+    ]},
+  { id: 'docs-hr', name: 'HR & Salary Documents', category: 'documents',
+    engines: ['google','bing'],
+    description: 'HR documents containing employee salary or compensation data.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'exact',value:'employee'},
+      {type:'exact',value:'salary'},{type:'OR',value:''},
+      {type:'exact',value:'compensation'},
+    ]},
+  { id: 'docs-legal', name: 'Confidential Legal Docs', category: 'documents',
+    engines: ['google','bing'],
+    description: 'Legal agreements and settlements marked confidential.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'exact',value:'settlement'},
+      {type:'OR',value:''},{type:'exact',value:'agreement'},
+      {type:'exact',value:'confidential'},
+    ]},
+
+  // ── OPEN DIRECTORIES ─────────────────────────────────────────
+  { id: 'dir-generic', name: 'Generic Open Directory', category: 'directories',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Apache/Nginx directory listing pages with no access controls.',
+    operators: [
+      {type:'intitle',value:'"index of /"'},
+    ]},
+  { id: 'dir-backups', name: 'Backup Files in Directories', category: 'directories',
+    engines: ['google','bing'],
+    description: 'Open directories containing backup archives or .bak files.',
+    operators: [
+      {type:'intitle',value:'"index of"'},{type:'exact',value:'backup'},
+      {type:'OR',value:''},{type:'exact',value:'.bak'},
+    ]},
+  { id: 'dir-passwords', name: 'Password Files in Directories', category: 'directories',
+    engines: ['google','bing'],
+    description: 'Open directories exposing password or passwd files.',
+    operators: [
+      {type:'intitle',value:'"index of"'},{type:'exact',value:'password'},
+      {type:'OR',value:''},{type:'exact',value:'passwd'},
+    ]},
+  { id: 'dir-logs', name: 'Log Files in Directories', category: 'directories',
+    engines: ['google','bing'],
+    description: 'Exposed application and server log files in open directory listings.',
+    operators: [
+      {type:'intitle',value:'"index of"'},{type:'exact',value:'.log'},
+    ]},
+  { id: 'dir-configs', name: 'Config Files in Directories', category: 'directories',
+    engines: ['google','bing'],
+    description: 'Directories exposing .conf, .config, or .cfg configuration files.',
+    operators: [
+      {type:'intitle',value:'"index of"'},{type:'exact',value:'.conf'},
+      {type:'OR',value:''},{type:'exact',value:'.config'},
+      {type:'OR',value:''},{type:'exact',value:'.cfg'},
+    ]},
+  { id: 'dir-databases', name: 'Database Files in Directories', category: 'directories',
+    engines: ['google','bing'],
+    description: 'Open directories containing .sql or .db database files.',
+    operators: [
+      {type:'intitle',value:'"index of"'},{type:'exact',value:'.sql'},
+      {type:'OR',value:''},{type:'exact',value:'.db'},
+    ]},
+
+  // ── CAMERAS & IOT ────────────────────────────────────────────
+  { id: 'cam-webcams', name: 'Generic Webcams', category: 'cameras',
+    engines: ['google','bing'],
+    description: 'Axis and generic network camera live view pages.',
+    operators: [
+      {type:'inurl',value:'"/view/index.shtml"'},
+    ]},
+  { id: 'cam-ip-cameras', name: 'IP / Network Cameras', category: 'cameras',
+    engines: ['google','bing'],
+    description: 'Publicly accessible IP and network camera interfaces.',
+    operators: [
+      {type:'intitle',value:'"IP Camera"'},{type:'OR',value:''},
+      {type:'intitle',value:'"Network Camera"'},
+    ]},
+  { id: 'cam-hikvision', name: 'Hikvision Cameras', category: 'cameras',
+    engines: ['google','bing'],
+    description: 'Hikvision DVR/NVR and IP camera web interfaces exposed online.',
+    operators: [
+      {type:'intitle',value:'"Hikvision"'},
+    ]},
+  { id: 'cam-routers', name: 'Router Admin Pages', category: 'cameras',
+    engines: ['google','bing'],
+    description: 'Router management pages accessible from the internet.',
+    operators: [
+      {type:'intitle',value:'"Router"'},{type:'inurl',value:'admin'},
+      {type:'OR',value:''},{type:'inurl',value:'setup'},
+    ]},
+  { id: 'cam-printers', name: 'Network Printer Admin', category: 'cameras',
+    engines: ['google','bing'],
+    description: 'Network printer admin pages with no authentication.',
+    operators: [
+      {type:'intitle',value:'"Printer"'},{type:'inurl',value:'admin'},
+    ]},
+  { id: 'cam-scada', name: 'SCADA / ICS Interfaces', category: 'cameras',
+    engines: ['google','shodan'],
+    description: 'Industrial control system and SCADA HMI interfaces exposed online.',
+    operators: [
+      {type:'intitle',value:'"SCADA"'},{type:'OR',value:''},
+      {type:'intitle',value:'"HMI"'},
+    ]},
+
+  // ── CONFIG & CREDENTIALS ─────────────────────────────────────
+  { id: 'cred-env', name: 'Exposed .env Files', category: 'credentials',
+    engines: ['google','bing'],
+    description: '.env files containing DB passwords or secret keys indexed publicly.',
+    operators: [
+      {type:'filetype',value:'env'},{type:'exact',value:'DB_PASSWORD'},
+      {type:'OR',value:''},{type:'exact',value:'SECRET_KEY'},
+    ]},
+  { id: 'cred-wp-config', name: 'wp-config Exposed', category: 'credentials',
+    engines: ['google','bing'],
+    description: 'WordPress configuration files with database credentials exposed.',
+    operators: [
+      {type:'inurl',value:'wp-config'},{type:'filetype',value:'php'},
+      {type:'OR',value:''},{type:'filetype',value:'txt'},
+    ]},
+  { id: 'cred-aws-keys', name: 'AWS Access Keys', category: 'credentials',
+    engines: ['google','bing'],
+    description: 'Exposed files containing AWS access key IDs (AKIA prefix).',
+    operators: [
+      {type:'filetype',value:'txt'},{type:'exact',value:'AKIA'},
+      {type:'OR',value:''},{type:'filetype',value:'env'},
+      {type:'exact',value:'AWS_ACCESS'},
+    ]},
+  { id: 'cred-db-dumps', name: 'Database Dumps', category: 'credentials',
+    engines: ['google','bing'],
+    description: 'SQL dump files containing INSERT statements with user tables.',
+    operators: [
+      {type:'filetype',value:'sql'},{type:'exact',value:'INSERT INTO'},
+      {type:'exact',value:'users'},
+    ]},
+  { id: 'cred-ssh-keys', name: 'SSH Private Keys', category: 'credentials',
+    engines: ['google','bing'],
+    description: 'Exposed PEM or key files containing RSA private keys.',
+    operators: [
+      {type:'filetype',value:'pem'},{type:'OR',value:''},
+      {type:'filetype',value:'key'},{type:'exact',value:'BEGIN RSA PRIVATE KEY'},
+    ]},
+  { id: 'cred-api-keys-js', name: 'API Keys in JavaScript', category: 'credentials',
+    engines: ['google','bing'],
+    description: 'JavaScript files with hardcoded API key variables.',
+    operators: [
+      {type:'filetype',value:'js'},{type:'exact',value:'api_key'},
+      {type:'OR',value:''},{type:'exact',value:'apiKey'},
+      {type:'OR',value:''},{type:'exact',value:'API_KEY'},
+    ]},
+  { id: 'cred-docker', name: 'Docker Compose Secrets', category: 'credentials',
+    engines: ['google','bing'],
+    description: 'Docker Compose files containing hardcoded passwords.',
+    operators: [
+      {type:'filetype',value:'yml'},{type:'exact',value:'docker-compose'},
+      {type:'exact',value:'password'},
+    ]},
+  { id: 'cred-git-config', name: 'Exposed .git Config', category: 'credentials',
+    engines: ['google','duckduckgo','bing'],
+    description: 'Publicly accessible .git/config files revealing repository details.',
+    operators: [
+      {type:'inurl',value:'"/.git/config"'},
+    ]},
+
+  // ── PERSON OSINT ─────────────────────────────────────────────
+  { id: 'person-name-social', name: 'Name + Social Profiles', category: 'person',
+    engines: ['google','duckduckgo'],
+    description: 'Find LinkedIn and Facebook profiles for a target name.',
+    operators: [
+      {type:'site',value:'linkedin.com'},{type:'OR',value:''},
+      {type:'site',value:'facebook.com'},
+    ]},
+  { id: 'person-email-pattern', name: 'Email Pattern Finder', category: 'person',
+    engines: ['google','duckduckgo'],
+    description: 'Find pages referencing a target name alongside email addresses.',
+    operators: [
+      {type:'exact',value:'@gmail.com'},{type:'OR',value:''},
+      {type:'exact',value:'@yahoo.com'},
+    ]},
+  { id: 'person-phone', name: 'Phone Lookup', category: 'person',
+    engines: ['truepeoplesearch'],
+    description: 'Reverse phone number lookup on TruePeopleSearch.',
+    operators: [{type:'site',value:'truepeoplesearch.com'}]},
+  { id: 'person-address', name: 'Address History', category: 'person',
+    engines: ['whitepages'],
+    description: 'Search WhitePages for address history tied to a name.',
+    operators: [{type:'site',value:'whitepages.com'}]},
+  { id: 'person-social-sweep', name: 'Social Profile Sweep', category: 'person',
+    engines: ['duckduckgo'],
+    description: 'Search for a username across Twitter, Instagram, and Reddit.',
+    operators: [
+      {type:'site',value:'twitter.com'},{type:'OR',value:''},
+      {type:'site',value:'instagram.com'},{type:'OR',value:''},
+      {type:'site',value:'reddit.com'},
+    ]},
+  { id: 'person-voter', name: 'Voter Records', category: 'person',
+    engines: ['google','bing'],
+    description: 'Publicly accessible voter registration records on .gov domains.',
+    operators: [
+      {type:'site',value:'.gov'},{type:'exact',value:'voter'},
+      {type:'filetype',value:'pdf'},{type:'OR',value:''},
+      {type:'filetype',value:'csv'},
+    ]},
+  { id: 'person-court', name: 'Court Records', category: 'person',
+    engines: ['google','duckduckgo'],
+    description: 'Search court records on CourtListener and PACER.',
+    operators: [
+      {type:'site',value:'courtlistener.com'},{type:'OR',value:''},
+      {type:'site',value:'pacer.gov'},
+    ]},
+  { id: 'person-property', name: 'Property Records', category: 'person',
+    engines: ['google','duckduckgo'],
+    description: 'Search property ownership records via Zillow and county assessors.',
+    operators: [
+      {type:'site',value:'zillow.com'},{type:'OR',value:''},
+      {type:'exact',value:'property records'},{type:'exact',value:'assessor'},
+    ]},
+
+  // ── COMPANY / ORG RECON ──────────────────────────────────────
+  { id: 'company-employees', name: 'LinkedIn Employee Directory', category: 'company',
+    engines: ['google','duckduckgo'],
+    description: 'Find LinkedIn profiles of employees at a target company.',
+    operators: [
+      {type:'site',value:'linkedin.com/in'},{type:'intitle',value:'"at"'},
+    ]},
+  { id: 'company-jobs', name: 'Job Postings for Stack', category: 'company',
+    engines: ['google','duckduckgo'],
+    description: 'Find job postings to infer technology stack and team structure.',
+    operators: [
+      {type:'site',value:'indeed.com'},{type:'OR',value:''},
+      {type:'site',value:'lever.co'},{type:'exact',value:'engineer'},
+    ]},
+  { id: 'company-subdomains', name: 'Subdomain Sweep', category: 'company',
+    engines: ['google','bing'],
+    description: 'Enumerate indexed subdomains of a target domain, excluding www.',
+    operators: [
+      {type:'site',value:'company.com'},{type:'inurl_exclude',value:'www'},
+    ]},
+  { id: 'company-vpn', name: 'VPN / Remote Portals', category: 'company',
+    engines: ['google','bing'],
+    description: 'Find VPN and remote access portals on a target domain.',
+    operators: [
+      {type:'site',value:'company.com'},{type:'inurl',value:'vpn'},
+      {type:'OR',value:''},{type:'inurl',value:'remote'},
+    ]},
+  { id: 'company-ma-docs', name: 'M&A / Acquisition Docs', category: 'company',
+    engines: ['google','bing'],
+    description: 'PDF documents related to acquisitions or mergers.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'exact',value:'acquisition'},
+      {type:'OR',value:''},{type:'exact',value:'merger'},
+    ]},
+  { id: 'company-org-chart', name: 'Org Chart PDFs', category: 'company',
+    engines: ['google','bing'],
+    description: 'Indexed organizational chart PDFs for a target company.',
+    operators: [
+      {type:'filetype',value:'pdf'},{type:'exact',value:'org chart'},
+      {type:'OR',value:''},{type:'exact',value:'organization chart'},
+    ]},
+  { id: 'company-tech-stack', name: 'Tech Stack from Job Sites', category: 'company',
+    engines: ['google','duckduckgo'],
+    description: "Infer a company's tech stack from Greenhouse or Workday job listings.",
+    operators: [
+      {type:'site',value:'greenhouse.io'},{type:'OR',value:''},
+      {type:'site',value:'workday.com'},
+    ]},
+
+  // ── CODE & DEV SECRETS ───────────────────────────────────────
+  { id: 'code-env-passwords', name: 'GitHub .env Passwords', category: 'code',
+    engines: ['github'],
+    description: 'Search GitHub for .env files containing password fields.',
+    operators: [
+      {type:'filename',value:'.env'},{type:'exact',value:'password'},
+    ]},
+  { id: 'code-api-keys', name: 'API Keys in JavaScript', category: 'code',
+    engines: ['github'],
+    description: 'JavaScript files in public repos with hardcoded API keys.',
+    operators: [
+      {type:'exact',value:'api_key'},{type:'OR',value:''},
+      {type:'exact',value:'apikey'},{type:'language_gh',value:'javascript'},
+    ]},
+  { id: 'code-aws-keys', name: 'AWS Keys in Code', category: 'code',
+    engines: ['github'],
+    description: 'Source files containing the AKIA AWS access key prefix.',
+    operators: [
+      {type:'exact',value:'AKIA'},{type:'extension',value:'py'},
+      {type:'OR',value:''},{type:'extension',value:'js'},
+      {type:'OR',value:''},{type:'extension',value:'txt'},
+    ]},
+  { id: 'code-ssh-keys', name: 'Private SSH Keys in Repos', category: 'code',
+    engines: ['github'],
+    description: 'Private key files accidentally committed to public repositories.',
+    operators: [
+      {type:'filename',value:'id_rsa'},{type:'OR',value:''},
+      {type:'filename',value:'id_dsa'},
+    ]},
+  { id: 'code-hardcoded-pw', name: 'Hardcoded Passwords', category: 'code',
+    engines: ['github'],
+    description: 'Python and PHP files with hardcoded password assignments.',
+    operators: [
+      {type:'exact',value:'password='},{type:'OR',value:''},
+      {type:'exact',value:'passwd='},{type:'language_gh',value:'python'},
+      {type:'OR',value:''},{type:'language_gh',value:'php'},
+    ]},
+  { id: 'code-db-strings', name: 'DB Connection Strings', category: 'code',
+    engines: ['github'],
+    description: 'JavaScript files with exposed MongoDB or MySQL connection strings.',
+    operators: [
+      {type:'exact',value:'mongodb://'},{type:'OR',value:''},
+      {type:'exact',value:'mysql://'},{type:'language_gh',value:'javascript'},
+    ]},
+  { id: 'code-jwt-secrets', name: 'JWT Secrets', category: 'code',
+    engines: ['github'],
+    description: 'Environment files containing JWT signing secrets.',
+    operators: [
+      {type:'exact',value:'JWT_SECRET'},{type:'OR',value:''},
+      {type:'exact',value:'jwt_secret'},{type:'filename',value:'.env'},
+    ]},
+
+  // ── EMAIL & COMMUNICATION ────────────────────────────────────
+  { id: 'email-lists', name: 'Exposed Email Lists', category: 'email',
+    engines: ['google','bing'],
+    description: 'Text files containing collections of email addresses.',
+    operators: [
+      {type:'filetype',value:'txt'},{type:'exact',value:'email'},
+      {type:'exact',value:'@'},
+    ]},
+  { id: 'email-owa', name: 'OWA Portals', category: 'email',
+    engines: ['google','bing'],
+    description: 'Outlook Web App portals accessible without VPN.',
+    operators: [
+      {type:'intitle',value:'"Outlook Web App"'},{type:'inurl',value:'owa'},
+    ]},
+  { id: 'email-mailman', name: 'Mailman Archives', category: 'email',
+    engines: ['google','duckduckgo'],
+    description: 'Public mailing list archives with subscriber data.',
+    operators: [
+      {type:'inurl',value:'pipermail'},{type:'OR',value:''},
+      {type:'inurl',value:'mailman/listinfo'},
+    ]},
+  { id: 'email-exchange', name: 'Exchange Servers', category: 'email',
+    engines: ['google','bing'],
+    description: 'Microsoft Exchange webmail portals exposed to the internet.',
+    operators: [
+      {type:'intitle',value:'"Microsoft Exchange"'},{type:'inurl',value:'/owa'},
+    ]},
+  { id: 'email-harvest', name: 'Email Harvesting Spreadsheets', category: 'email',
+    engines: ['google','bing'],
+    description: 'Spreadsheets with corporate email address lists.',
+    operators: [
+      {type:'filetype',value:'xlsx'},{type:'OR',value:''},
+      {type:'filetype',value:'csv'},{type:'exact',value:'@'},
+    ]},
+
+  // ── DATABASE & LOGS ──────────────────────────────────────────
+  { id: 'db-phpmyadmin', name: 'phpMyAdmin Open Access', category: 'database',
+    engines: ['google','duckduckgo','bing'],
+    description: 'phpMyAdmin panels with no authentication protecting the database.',
+    operators: [
+      {type:'inurl',value:'phpmyadmin'},{type:'intitle',value:'phpmyadmin'},
+    ]},
+  { id: 'db-mongodb', name: 'Exposed MongoDB', category: 'database',
+    engines: ['google','shodan'],
+    description: 'MongoDB interfaces accessible without authentication.',
+    operators: [
+      {type:'intitle',value:'"Set-Cookie: mongo"'},
+    ]},
+  { id: 'db-sql-dumps', name: 'Public SQL Dumps', category: 'database',
+    engines: ['google','bing'],
+    description: 'SQL dump files with CREATE TABLE and INSERT statements.',
+    operators: [
+      {type:'filetype',value:'sql'},{type:'exact',value:'create table'},
+      {type:'exact',value:'insert into'},
+    ]},
+  { id: 'db-apache-errors', name: 'Apache Error Logs', category: 'database',
+    engines: ['google','bing'],
+    description: 'Exposed Apache log files containing PHP errors and stack traces.',
+    operators: [
+      {type:'filetype',value:'log'},{type:'exact',value:'PHP Fatal error'},
+      {type:'OR',value:''},{type:'exact',value:'PHP Warning'},
+    ]},
+  { id: 'db-access-logs', name: 'Web Access Logs', category: 'database',
+    engines: ['google','bing'],
+    description: 'Web server access logs revealing URL paths and client IPs.',
+    operators: [
+      {type:'filetype',value:'log'},{type:'inurl',value:'access.log'},
+    ]},
+  { id: 'db-elasticsearch', name: 'Elasticsearch Exposed', category: 'database',
+    engines: ['google','shodan'],
+    description: 'Elasticsearch instances on port 9200 without authentication.',
+    operators: [
+      {type:'inurl',value:'9200'},{type:'intitle',value:'"200 OK"'},
+    ]},
+
+  // ── PASTE & LEAK SITES ───────────────────────────────────────
+  { id: 'paste-creds', name: 'Credential Dumps', category: 'paste',
+    engines: ['google','duckduckgo'],
+    description: 'Pastebin posts containing username/password credential pairs.',
+    operators: [
+      {type:'site',value:'pastebin.com'},{type:'exact',value:'password'},
+      {type:'exact',value:'username'},{type:'OR',value:''},
+      {type:'exact',value:'email'},
+    ]},
+  { id: 'paste-api-keys', name: 'API Key Leaks', category: 'paste',
+    engines: ['google','duckduckgo'],
+    description: 'Pastes containing leaked API keys or secret tokens.',
+    operators: [
+      {type:'site',value:'pastebin.com'},{type:'exact',value:'api_key'},
+      {type:'OR',value:''},{type:'exact',value:'secret'},
+    ]},
+  { id: 'paste-emails', name: 'Email List Leaks', category: 'paste',
+    engines: ['google','duckduckgo'],
+    description: 'Pastebin dumps containing leaked email address lists.',
+    operators: [
+      {type:'site',value:'pastebin.com'},{type:'exact',value:'@gmail.com'},
+      {type:'exact',value:'@yahoo.com'},
+    ]},
+  { id: 'paste-source', name: 'Source Code Leaks', category: 'paste',
+    engines: ['google','duckduckgo'],
+    description: 'Pastes containing leaked PHP or Python source code.',
+    operators: [
+      {type:'site',value:'pastebin.com'},{type:'exact',value:'<?php'},
+      {type:'OR',value:''},{type:'exact',value:'import os'},
+    ]},
+  { id: 'paste-db-dumps', name: 'Database Dump Pastes', category: 'paste',
+    engines: ['google','duckduckgo'],
+    description: 'Pastebin posts containing SQL database dumps.',
+    operators: [
+      {type:'site',value:'pastebin.com'},{type:'exact',value:'INSERT INTO'},
+      {type:'OR',value:''},{type:'exact',value:'CREATE TABLE'},
+    ]},
+
+  // ── SUBDOMAIN & INFRASTRUCTURE ───────────────────────────────
+  { id: 'infra-shodan-org', name: 'Shodan Org Query', category: 'infra',
+    engines: ['shodan'],
+    description: 'Find all assets registered to a target organization on Shodan.',
+    operators: [{type:'org',value:'"Company Name"'}]},
+  { id: 'infra-shodan-ports', name: 'Shodan Port Scan', category: 'infra',
+    engines: ['shodan'],
+    description: 'Find SSH and RDP services exposed by an organization on Shodan.',
+    operators: [
+      {type:'port',value:'22'},{type:'OR',value:''},
+      {type:'port',value:'3389'},{type:'org',value:'"Company"'},
+    ]},
+  { id: 'infra-censys-org', name: 'Censys Org Search', category: 'infra',
+    engines: ['censys'],
+    description: 'Search Censys for all certificates and hosts matching a domain.',
+    operators: [{type:'exact',value:'parsed.names: company.com'}]},
+  { id: 'infra-urlscan', name: 'URLScan Domain Sweep', category: 'infra',
+    engines: ['urlscan'],
+    description: 'Search URLScan.io for all scanned pages on a target domain.',
+    operators: [{type:'site',value:'company.com'}]},
+  { id: 'infra-archive-sub', name: 'Archive.org Subdomain Sweep', category: 'infra',
+    engines: ['archive'],
+    description: 'Find all Wayback Machine captures for any subdomain of a target.',
+    operators: [{type:'site',value:'*.company.com'}]},
+  { id: 'infra-cert-transparency', name: 'Certificate Transparency', category: 'infra',
+    engines: ['google'],
+    description: 'Search crt.sh for SSL certificates issued to a target domain.',
+    operators: [{type:'site',value:'crt.sh'}]},
+
+  // ── SOCIAL MEDIA OSINT ───────────────────────────────────────
+  { id: 'social-username-sweep', name: 'Username Google Sweep', category: 'social',
+    engines: ['google','duckduckgo'],
+    description: 'Find a username across Twitter, Instagram, and Reddit simultaneously.',
+    operators: [
+      {type:'site',value:'twitter.com'},{type:'OR',value:''},
+      {type:'site',value:'instagram.com'},{type:'OR',value:''},
+      {type:'site',value:'reddit.com'},
+    ]},
+  { id: 'social-cached-profiles', name: 'Cached Deleted Profiles', category: 'social',
+    engines: ['google'],
+    description: "Find Google's cached copy of a deleted or suspended social profile.",
+    operators: [{type:'cache',value:'twitter.com/username'}]},
+  { id: 'social-linkedin-employees', name: 'LinkedIn Company Employees', category: 'social',
+    engines: ['google','duckduckgo'],
+    description: 'Enumerate LinkedIn profiles of employees at a target organization.',
+    operators: [
+      {type:'site',value:'linkedin.com/in'},{type:'exact',value:'at company name'},
+    ]},
+  { id: 'social-reddit-user', name: 'Reddit User History', category: 'social',
+    engines: ['google','duckduckgo'],
+    description: "Search a Reddit user's post and comment history.",
+    operators: [{type:'site',value:'reddit.com/user'}]},
+  { id: 'social-wayback', name: 'Archive Social Profile', category: 'social',
+    engines: ['archive'],
+    description: 'Look up Wayback Machine captures of a social media profile URL.',
+    operators: [{type:'site',value:'twitter.com/username'}]},
+
+  // ── GOVERNMENT & PUBLIC RECORDS ──────────────────────────────
+  { id: 'gov-foia', name: 'FOIA Documents', category: 'government',
+    engines: ['google','bing'],
+    description: 'Freedom of Information Act documents hosted on .gov domains.',
+    operators: [
+      {type:'site',value:'.gov'},{type:'filetype',value:'pdf'},
+      {type:'exact',value:'FOIA'},{type:'OR',value:''},
+      {type:'exact',value:'freedom of information'},
+    ]},
+  { id: 'gov-court-records', name: 'Court Records', category: 'government',
+    engines: ['google','duckduckgo'],
+    description: 'Search federal court records via CourtListener and PACER.',
+    operators: [
+      {type:'site',value:'courtlistener.com'},{type:'OR',value:''},
+      {type:'site',value:'pacer.gov'},
+    ]},
+  { id: 'gov-salary', name: 'Public Salary Database', category: 'government',
+    engines: ['google','bing'],
+    description: 'Government salary data in CSV or spreadsheet format.',
+    operators: [
+      {type:'site',value:'.gov'},{type:'exact',value:'salary'},
+      {type:'filetype',value:'csv'},{type:'OR',value:''},
+      {type:'filetype',value:'xlsx'},
+    ]},
+  { id: 'gov-property', name: 'Property Records', category: 'government',
+    engines: ['google','duckduckgo'],
+    description: 'County assessor property records for ownership lookups.',
+    operators: [
+      {type:'exact',value:'property records'},{type:'exact',value:'assessor'},
+    ]},
+  { id: 'gov-campaign-finance', name: 'Campaign Finance', category: 'government',
+    engines: ['google','duckduckgo'],
+    description: 'FEC and OpenSecrets campaign finance contribution records.',
+    operators: [
+      {type:'site',value:'fec.gov'},{type:'OR',value:''},
+      {type:'site',value:'opensecrets.org'},
+    ]},
+
+  // ── PEOPLE SEARCH ENGINES ────────────────────────────────────
+  { id: 'people-tps-name', name: 'TruePeopleSearch — Name', category: 'people',
+    engines: ['truepeoplesearch'],
+    description: 'Search TruePeopleSearch by first name, last name, city, and state.',
+    operators: []},
+  { id: 'people-tps-phone', name: 'TruePeopleSearch — Phone', category: 'people',
+    engines: ['truepeoplesearch'],
+    description: 'Reverse phone number lookup on TruePeopleSearch.',
+    operators: []},
+  { id: 'people-tps-address', name: 'TruePeopleSearch — Address', category: 'people',
+    engines: ['truepeoplesearch'],
+    description: 'Search TruePeopleSearch by street address and city/state.',
+    operators: []},
+  { id: 'people-whitepages', name: 'WhitePages Name Search', category: 'people',
+    engines: ['whitepages'],
+    description: 'Search WhitePages for contact and address data by name.',
+    operators: []},
+  { id: 'people-fastpeoplesearch', name: 'FastPeopleSearch — Name', category: 'people',
+    engines: ['fastpeoplesearch'],
+    description: 'Look up a person by name on FastPeopleSearch.',
+    operators: []},
+  { id: 'people-multi', name: 'Multi-Engine Person Sweep', category: 'people',
+    engines: ['truepeoplesearch','whitepages','fastpeoplesearch'],
+    description: 'Launch a name search simultaneously on all three people-search engines.',
+    operators: []},
+];
+
+// ══════════════════════════════════════════════════════════════
+// TEMPLATE MANAGER
+// ══════════════════════════════════════════════════════════════
+const TemplateManager = {
+  activeCategory: 'all',
+  searchTerm: '',
+
+  init() {
+    this._injectSearch();
+    this._buildSidebar();
+    this._renderGrid();
+    this._updateTabCount();
+  },
+
+  // ── Inject search box above the category list ─────────────────
+  _injectSearch() {
+    const wrap = document.createElement('div');
+    wrap.className = 'template-search-wrap';
+    wrap.innerHTML = `<input type="text" id="template-search" class="template-search"
+      placeholder="Search templates…" autocomplete="off" spellcheck="false" />`;
+    document.getElementById('category-list').insertAdjacentElement('beforebegin', wrap);
+
+    document.getElementById('template-search').addEventListener('input', e => {
+      this.searchTerm = e.target.value.trim().toLowerCase();
+      // Reset to "all" when typing so results aren't hidden by category filter
+      if (this.searchTerm) this.activeCategory = 'all';
+      this._buildSidebar();
+      this._renderGrid();
+    });
+  },
+
+  // ── Rebuild category sidebar with counts ──────────────────────
+  _buildSidebar() {
+    const list = document.getElementById('category-list');
+    const visible = this._getFilteredBySearch();
+
+    // Count per category among search-filtered set
+    const counts = {};
+    for (const t of visible) counts[t.category] = (counts[t.category] || 0) + 1;
+
+    const all = this.activeCategory === 'all';
+    let html = `<li><button class="category-btn ${all ? 'category-btn-active' : ''}" data-category="all">
+      <span class="cat-icon">📋</span><span class="cat-name">All Templates</span>
+      <span class="cat-count">${visible.length}</span></button></li>`;
+
+    for (const cat of CATEGORIES) {
+      const n = counts[cat.id] || 0;
+      if (!n && this.searchTerm) continue;
+      const active = this.activeCategory === cat.id;
+      html += `<li><button class="category-btn ${active ? 'category-btn-active' : ''}" data-category="${_esc(cat.id)}">
+        <span class="cat-icon">${cat.icon}</span><span class="cat-name">${_esc(cat.label)}</span>
+        <span class="cat-count">${n}</span></button></li>`;
+    }
+
+    list.innerHTML = html;
+    list.querySelectorAll('.category-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.activeCategory = btn.dataset.category;
+        this._buildSidebar();
+        this._renderGrid();
+      });
+    });
+  },
+
+  // ── Render template card grid ─────────────────────────────────
+  _renderGrid() {
+    const grid = document.getElementById('template-grid');
+    const templates = this._filteredTemplates();
+
+    if (!templates.length) {
+      grid.innerHTML = `<div class="template-empty-state">
+        <span class="empty-icon">//</span>
+        No templates match your search.</div>`;
+      return;
+    }
+
+    grid.innerHTML = templates.map(t => this._cardHTML(t)).join('');
+
+    grid.querySelectorAll('.btn-load-template').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tmpl = TEMPLATES.find(t => t.id === btn.dataset.tid);
+        if (tmpl) this._loadTemplate(tmpl);
+      });
+    });
+  },
+
+  // ── Build HTML for a single template card ─────────────────────
+  _cardHTML(t) {
+    const cat   = CATEGORIES.find(c => c.id === t.category);
+    const icon  = cat ? cat.icon : '🔍';
+
+    // Inline query preview — same logic as Builder.buildQuery()
+    const preview = t.operators.length
+      ? t.operators.map(op => {
+          const def = OPERATORS[op.type];
+          return def ? def.syntax.replace('{value}', op.value) : op.value;
+        }).join(' ').trim()
+      : '(people search mode)';
+
+    const badges = t.engines
+      .map(id => ENGINES[id] ? `<span class="engine-badge">${_esc(ENGINES[id].label)}</span>` : '')
+      .join('');
+
+    return `<article class="template-card" data-category="${_esc(t.category)}">
+      <div class="card-header"><span class="card-cat-icon">${icon}</span>${_esc(t.name)}</div>
+      <div class="card-body">
+        <code class="card-query">${_esc(preview)}</code>
+        <p class="card-desc">${_esc(t.description)}</p>
+      </div>
+      <div class="card-footer">
+        <div class="engine-badges">${badges}</div>
+        <button class="btn card-btn btn-load-template" data-tid="${_esc(t.id)}">LOAD</button>
+      </div>
+    </article>`;
+  },
+
+  // ── Load a template into the Builder and switch tabs ──────────
+  _loadTemplate(t) {
+    window.builder.reset();
+    t.operators.forEach(op => window.builder.addOperator(op.type, op.value));
+
+    // Apply engine selection from template
+    document.querySelectorAll('.engine-checkbox').forEach(cb => {
+      cb.checked = t.engines.includes(cb.dataset.engine);
+    });
+    const shodanCb = document.querySelector('.engine-checkbox[data-engine="shodan"]');
+    const shodanNote = document.getElementById('shodan-disclaimer');
+    if (shodanCb && shodanNote) shodanNote.hidden = !shodanCb.checked;
+
+    window.builder._checkTpsMode();
+    window.builder._updatePreview();
+    switchTab('builder');
+    window.builder._showLaunchLog('ok', `Template loaded: ${t.name}`);
+  },
+
+  // ── Filtering helpers ─────────────────────────────────────────
+  _filteredTemplates() {
+    let list = this._getFilteredBySearch();
+    if (this.activeCategory !== 'all') {
+      list = list.filter(t => t.category === this.activeCategory);
+    }
+    return list;
+  },
+
+  _getFilteredBySearch() {
+    if (!this.searchTerm) return TEMPLATES;
+    const q = this.searchTerm;
+    return TEMPLATES.filter(t =>
+      t.name.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q)
+    );
+  },
+
+  // ── Update the tab button label with total count ──────────────
+  _updateTabCount() {
+    const btn = document.querySelector('.tab-btn[data-tab="templates"]');
+    if (btn) btn.textContent = `TEMPLATES (${TEMPLATES.length})`;
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -1002,6 +1840,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initExport();
 
   window.builder = new Builder();
+  TemplateManager.init();
   renderHistory();
 
   // Restore query from share URL hash  (#q=site:example.com+...)
