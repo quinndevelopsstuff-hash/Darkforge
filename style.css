@@ -995,3 +995,162 @@ select:disabled {
   outline: 1px solid var(--amber);
   outline-offset: 1px;
 }
+
+/* ============================================================
+   OPERATOR ROW — JS-injected actions column + drag states
+   ============================================================ */
+
+/* Actions cluster: ↑ ↓ × buttons aligned right */
+.operator-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Up/Down reorder buttons share base .btn .btn-sm; add subtle dim */
+.op-btn-up,
+.op-btn-dn {
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.op-btn-up:hover,
+.op-btn-dn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Row being dragged */
+.operator-row.dragging {
+  opacity: 0.4;
+  border-color: var(--amber);
+}
+
+/* Drop target highlight */
+.operator-row.drag-over {
+  border-color: var(--green);
+  box-shadow: var(--glow-green);
+  background: rgba(132, 204, 22, 0.05);
+}
+
+/* Drag handle cursor on the row itself */
+.operator-row[draggable="true"] {
+  cursor: grab;
+}
+.operator-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* ============================================================
+   INPUT ERROR FLASH — red border pulse on invalid submit
+   ============================================================ */
+@keyframes input-error-flash {
+  0%   { border-color: var(--red); box-shadow: var(--glow-red); }
+  50%  { border-color: var(--red); box-shadow: 0 0 14px var(--red); }
+  100% { border-color: var(--border); box-shadow: none; }
+}
+
+.input-error {
+  animation: input-error-flash 0.5s ease forwards;
+}
+
+/* ============================================================
+   LAUNCH LOG — status line beneath the LAUNCH button
+   ============================================================ */
+.launch-log {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
+  font-family: var(--font);
+}
+
+.launch-log-ok {
+  color: var(--green);
+  border-color: rgba(132, 204, 22, 0.3);
+  background: rgba(132, 204, 22, 0.05);
+}
+
+.launch-log-error {
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+/* ============================================================
+   TPS PEOPLE-SEARCH FORM — injected below add-operator-row
+   when only people-search engines are checked
+   ============================================================ */
+.tps-form {
+  border: 1px solid var(--amber-dim);
+  background: rgba(245, 158, 11, 0.04);
+  padding: 10px 12px;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.tps-form-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tps-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--amber);
+  text-transform: uppercase;
+}
+
+.tps-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.tps-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+/* Wide field spans full row */
+.tps-input.tps-wide {
+  grid-column: 1 / -1;
+}
+
+.tps-input {
+  font-family: var(--font);
+  font-size: 11px;
+  background: var(--inset-bg);
+  color: var(--amber);
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  caret-color: var(--amber);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+.tps-input::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.tps-input:focus {
+  border-color: var(--amber);
+  box-shadow: var(--glow-amber);
+}
+
+/* ============================================================
+   HIDDEN UTILITY
+   ============================================================ */
+[hidden] { display: none !important; }
