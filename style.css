@@ -1317,9 +1317,37 @@ select:disabled {
   /* Lift font floor */
   body { font-size: 12px; }
 
+  /* Allow page-level scroll on mobile — outer shell no longer clips */
+  html, body {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
   /* Override topbar height for 2-row layout */
   :root { --topbar-h: 76px; }
-  #main-content { height: calc(100dvh - 76px); height: calc(100vh - 76px); }
+
+  /* Topbar sticks to top of viewport as user scrolls */
+  #topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  /* Main content expands with its contents instead of fixed viewport height */
+  #main-content {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* Tab panels: let content flow through (page scrolls, not panel) */
+  .tab-panel {
+    overflow: visible;
+    flex: none;
+    height: auto;
+  }
 
   /* ── TOP BAR: 2-row layout ─────────────────────────────────── */
   #topbar {
@@ -1373,6 +1401,9 @@ select:disabled {
     color: inherit;
   }
 
+  /* ── Hamburger: 44px tap target ──────────────────────────────── */
+  #nav-hamburger { width: 44px; height: 44px; }
+
   /* ── PANELS ──────────────────────────────────────────────────── */
   .tab-panel { padding: 12px; }
 
@@ -1398,8 +1429,11 @@ select:disabled {
     width: 100%;
     padding: 12px;
     padding-bottom: 72px; /* clear fixed LAUNCH button */
-    overflow-y: auto;
+    overflow-y: visible;
   }
+
+  /* Operator list: expand freely (page scrolls) */
+  .operator-list { overflow: visible; max-height: none; flex: none; }
 
   /* Add-operator row: stacked vertically */
   .add-operator-row { flex-direction: column; align-items: stretch; gap: 6px; }
@@ -2501,7 +2535,7 @@ select:disabled {
   visibility: visible !important;
   opacity: 1 !important;
   background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
-  border: 2px solid red !important; /* TEMP DEBUG — remove in follow-up */
+  border: 1px solid var(--color-primary) !important;
   border-left: 3px solid var(--color-primary) !important;
   padding: 12px 16px !important;
   min-height: 120px !important;

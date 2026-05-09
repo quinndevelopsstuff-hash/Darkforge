@@ -2798,12 +2798,12 @@ function initMobile() {
     // Wrap preview + copy button in an animated container
     const wrap = document.createElement('div');
     wrap.className = 'preview-collapsible';
-    wrap.style.maxHeight = '0px'; // start collapsed
+    wrap.style.maxHeight = '9999px'; // start expanded — preview always visible
     preview.insertAdjacentElement('beforebegin', wrap);
     wrap.appendChild(preview);
     wrap.appendChild(copyBtn);
 
-    header.classList.add('preview-collapse-header', 'collapsed');
+    header.classList.add('preview-collapse-header'); // NOT collapsed by default
     header.setAttribute('role', 'button');
     header.setAttribute('tabindex', '0');
 
@@ -2820,6 +2820,14 @@ function initMobile() {
     header.addEventListener('click', toggle);
     header.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') toggle(); });
   }
+
+  // ── Preview box failsafe: force visibility if DOM somehow hides it ──
+  setTimeout(() => {
+    const box = document.getElementById('query-preview');
+    if (box) {
+      box.style.cssText += 'display:block!important;visibility:visible!important;min-height:100px!important;';
+    }
+  }, 500);
 
   // ── Sticky LAUNCH: track virtual keyboard height via visualViewport ──
   const launchBtn = document.getElementById('btn-launch');
