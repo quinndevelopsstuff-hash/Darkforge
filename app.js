@@ -674,6 +674,8 @@ class Builder {
     this.tpsFields = {};  // { first, last, city, state, zip, phone, address }
     this._dragIndex = null;
     this._logTimer  = null;
+    this._conflictRafId = null;
+    this._baseBuilderTitle = 'QUERY BUILDER';
 
     // DOM refs
     this.elList         = document.getElementById('operator-list');
@@ -875,9 +877,11 @@ class Builder {
     this.elList.innerHTML = '';
 
     // Section header count
-    this.elBuilderTitle.textContent = count
+    const _baseTitle = count
       ? `QUERY BUILDER (${count} operator${count !== 1 ? 's' : ''})`
       : 'QUERY BUILDER';
+    this._baseBuilderTitle = _baseTitle;
+    this.elBuilderTitle.textContent = _baseTitle;
 
     if (!count) {
       this.elList.appendChild(this.elEmpty);
@@ -1019,6 +1023,15 @@ class Builder {
       this.elPreview.textContent = query;
     }
     StrengthMeter.update(this.operators);
+
+    // Conflict detection — schedule DOM updates via rAF to avoid layout thrash
+    const _selectedEngines = this._getSelectedEngines();
+    const _detectedConflicts = conflictDetector.analyze(this.operators, _selectedEngines);
+    if (this._conflictRafId) cancelAnimationFrame(this._conflictRafId);
+    this._conflictRafId = requestAnimationFrame(() => {
+      renderConflicts(_detectedConflicts);
+      this._conflictRafId = null;
+    });
   }
 
   // ── PUBLIC: copy preview text to clipboard ────────────────────
@@ -5893,6 +5906,452 @@ const StrengthMeter = {
     }
   },
 };
+
+// ══════════════════════════════════════════════════════════════
+// CONFLICT DETECTOR
+// Runs synchronously (pure logic, no DOM) on every operator
+// change. renderConflicts() handles all DOM work via rAF.
+// ══════════════════════════════════════════════════════════════
+class ConflictDetector {
+  constructor() {
+    this._COMMON_WORDS = new Set([
+      'login','admin','pass','user','file','data','info','page',
+      'site','home','web','mail','test','dev','api','app','log',
+      'db','sql','php','html','index','access','error','debug',
+      'config','backup',
+    ]);
+    this._SITE_FT_INCOMPAT = {
+      'twitter.com':   ['pdf','xlsx','docx','csv'],
+      'x.com':         ['pdf','xlsx','docx','csv'],
+      'instagram.com': ['pdf','xlsx','docx','csv','sql'],
+      'youtube.com':   ['pdf','xlsx','docx','sql','env'],
+      'facebook.com':  ['pdf','xlsx','docx','csv','sql'],
+      'tiktok.com':    ['pdf','xlsx','docx','csv','sql'],
+      'reddit.com':    ['xlsx','docx','sql','env','cfg'],
+      'linkedin.com':  ['sql','env','cfg','log'],
+    };
+    this._SHODAN_OPS = new Set(['hostname','port','os','product']);
+  }
+
+  analyze(operators, checkedEngines) {
+    if (!operators.length) return [];
+    const conflicts = [];
+    const engines   = checkedEngines || [];
+
+    const idxByType = type =>
+      operators.reduce((acc, op, i) => { if (op.type === type) acc.push(i); return acc; }, []);
+    const pushToAll = (idxs, sev, msg, fix) =>
+      idxs.forEach(i => conflicts.push({ operatorIndex: i, type: sev, message: msg, affectedIndexes: idxs.slice(), fix }));
+
+    // ── Checks that fire at any operator count ────────────────
+
+    // ENGINE_OPERATOR_MISMATCH
+    operators.forEach((op, i) => {
+      const def = OPERATORS[op.type];
+      if (!def?.engines?.length) return;
+      if (!def.engines.some(e => engines.includes(e))) {
+        const names = def.engines.map(id => ENGINES[id]?.label ?? id).join(', ');
+        conflicts.push({ operatorIndex: i, type: 'warning',
+          message: `${def.label} is only supported by ${names}, which isn't currently selected. Either add ${names} to your target engines or replace this operator.`,
+          affectedIndexes: [i] });
+      }
+    });
+
+    // SHODAN_NOT_SELECTED
+    operators.forEach((op, i) => {
+      if (this._SHODAN_OPS.has(op.type) && !engines.includes('shodan')) {
+        conflicts.push({ operatorIndex: i, type: 'info',
+          message: 'This operator only works in Shodan — enable Shodan in your target engines to use it.',
+          affectedIndexes: [i] });
+      }
+    });
+
+    // BROAD_SINGLE_INTEXT (requires exactly 1 operator)
+    if (operators.length === 1 && operators[0].type === 'intext') {
+      const val = (operators[0].value || '').toLowerCase().trim();
+      if (val.length < 6 || this._COMMON_WORDS.has(val)) {
+        conflicts.push({ operatorIndex: 0, type: 'warning',
+          message: 'This single short term will return millions of unrelated results. Add more operators or use a more specific phrase in quotes.',
+          affectedIndexes: [0] });
+      }
+    }
+
+    if (operators.length < 2) return conflicts;
+
+    // ── Checks that require 2+ operators ─────────────────────
+
+    const siteIdxs = idxByType('site');
+    const ftIdxs   = [...idxByType('filetype'), ...idxByType('ext')];
+    const afterIdxs  = idxByType('after');
+    const beforeIdxs = idxByType('before');
+
+    // DUPLICATE_SITE
+    if (siteIdxs.length >= 2) {
+      pushToAll(siteIdxs, 'error',
+        "Multiple site: operators don't stack — Google only uses the last one. Remove all but one, or use OR inside a single site: value.",
+        'site:example.com OR site:other.com');
+    }
+
+    // DUPLICATE_FILETYPE
+    if (ftIdxs.length >= 2) {
+      pushToAll(ftIdxs, 'error',
+        'Multiple filetype: operators conflict — only one file type can be targeted at a time. Combine them: filetype:pdf OR filetype:docx',
+        'filetype:pdf OR filetype:docx');
+    }
+
+    // CONFLICTING_SITE_FILETYPE
+    for (const si of siteIdxs) {
+      const domain  = (operators[si].value || '').toLowerCase().replace(/^www\./, '');
+      const blocked = this._SITE_FT_INCOMPAT[domain];
+      if (!blocked) continue;
+      for (const fi of ftIdxs) {
+        const ft = (operators[fi].value || '').toLowerCase();
+        if (blocked.includes(ft)) {
+          const msg = `${domain} doesn't typically host .${ft} files — this search will likely return no results. Try removing the filetype: operator for this domain.`;
+          [si, fi].forEach(idx => conflicts.push({ operatorIndex: idx, type: 'error', message: msg, affectedIndexes: [si, fi] }));
+        }
+      }
+    }
+
+    // SELF_EXCLUDING
+    const inclOps = operators.map((op, i) => ({ op, i })).filter(
+      ({op}) => !op.type.includes('_exclude') && op.type !== 'NOT' && op.type !== 'OR' && op.type !== 'AND');
+    const exclOps = operators.map((op, i) => ({ op, i })).filter(
+      ({op}) => op.type.includes('_exclude') || op.type === 'NOT');
+
+    for (const { op: a, i: ai } of inclOps) {
+      if (!a.value) continue;
+      const aVal  = a.value.toLowerCase().replace(/['"]/g, '');
+      const aBase = a.type;
+      for (const { op: b, i: bi } of exclOps) {
+        if (!b.value) continue;
+        const bVal  = b.value.toLowerCase().replace(/['"]/g, '');
+        const bBase = b.type.replace('_exclude', '');
+        if (aBase === bBase && aVal === bVal && aVal.length > 0) {
+          const msg = "These operators cancel each other out — you're searching for and excluding the same term. One of these should be removed.";
+          [ai, bi].forEach(idx => conflicts.push({ operatorIndex: idx, type: 'error', message: msg, affectedIndexes: [ai, bi] }));
+        }
+      }
+    }
+
+    // EMPTY_OR
+    operators.forEach((op, i) => {
+      if (op.type !== 'OR') return;
+      const prev = operators[i - 1];
+      const next = operators[i + 1];
+      if (!prev || !next || prev.type === 'OR' || prev.type === 'AND' || next.type === 'OR' || next.type === 'AND') {
+        conflicts.push({ operatorIndex: i, type: 'error',
+          message: "OR requires terms on both sides — a dangling OR produces no valid results. Add a term on both sides or remove this OR.",
+          affectedIndexes: [i] });
+      }
+    });
+
+    // Value-level OR at start/end
+    operators.forEach((op, i) => {
+      if (!op.value) return;
+      if (/^\s*OR\b|\bOR\s*$/.test(op.value)) {
+        conflicts.push({ operatorIndex: i, type: 'error',
+          message: "OR requires terms on both sides — 'OR admin' is invalid. Add a term before OR: 'login OR admin'",
+          affectedIndexes: [i] });
+      }
+    });
+
+    // REDUNDANT_WILDCARD
+    operators.forEach((op, i) => {
+      if (!op.value) return;
+      const withoutQuoted = op.value.replace(/"[^"]*"/g, '');
+      if (withoutQuoted.includes('*')) {
+        conflicts.push({ operatorIndex: i, type: 'warning',
+          message: 'Wildcards only work inside quoted phrases in Google. Outside quotes, * is ignored entirely.',
+          affectedIndexes: [i] });
+      }
+    });
+
+    // STACKED_EXCLUSIONS_ONLY
+    const positiveOps = operators.filter(op =>
+      !op.type.includes('_exclude') && op.type !== 'NOT' && op.type !== 'OR' && op.type !== 'AND');
+    if (positiveOps.length === 0) {
+      const allIdxs = operators.map((_, i) => i);
+      operators.forEach((_, i) => conflicts.push({ operatorIndex: i, type: 'warning',
+        message: "All your operators are exclusions — there's nothing to search FOR. Add at least one positive operator like site:, intitle:, or intext:.",
+        affectedIndexes: allIdxs }));
+    }
+
+    // DOUBLE_QUOTED_SITE
+    siteIdxs.forEach(i => {
+      const v = operators[i].value || '';
+      if (v.includes('"') || v.includes("'")) {
+        conflicts.push({ operatorIndex: i, type: 'warning',
+          message: "site: doesn't use quotes — remove them. Correct format: site:example.com",
+          affectedIndexes: [i] });
+      }
+    });
+
+    // BEFORE_AFTER_CONFLICT
+    for (const bi of beforeIdxs) {
+      for (const ai of afterIdxs) {
+        const bDate = new Date(operators[bi].value || '');
+        const aDate = new Date(operators[ai].value || '');
+        if (!isNaN(bDate) && !isNaN(aDate) && bDate <= aDate) {
+          const msg = 'Your date range is impossible — before: date is earlier than after: date. Flip them: after:2020-01-01 before:2023-01-01';
+          [bi, ai].forEach(idx => conflicts.push({ operatorIndex: idx, type: 'warning', message: msg, affectedIndexes: [bi, ai] }));
+        }
+      }
+    }
+
+    // BEFORE_AFTER_FUTURE
+    const today = new Date();
+    afterIdxs.forEach(i => {
+      const d = new Date(operators[i].value || '');
+      if (!isNaN(d) && d > today) {
+        conflicts.push({ operatorIndex: i, type: 'warning',
+          message: "This date is in the future — no results can exist after today's date.",
+          affectedIndexes: [i] });
+      }
+    });
+
+    // SITE_WITH_OR (info)
+    siteIdxs.forEach(i => {
+      if (/\bOR\b/.test(operators[i].value || '')) {
+        conflicts.push({ operatorIndex: i, type: 'info',
+          message: 'Tip: site:A OR site:B works in Google but may not work in all engines. Check your selected engines support this syntax.',
+          affectedIndexes: [i] });
+      }
+    });
+
+    // MANY_OPERATORS (info, operatorIndex: -1)
+    if (operators.length >= 8) {
+      conflicts.push({ operatorIndex: -1, type: 'info',
+        message: 'Long queries can sometimes confuse search engines. If results are empty, try removing the least important operators.',
+        affectedIndexes: [] });
+    }
+
+    return conflicts;
+  }
+}
+
+const conflictDetector = new ConflictDetector();
+
+// ── Severity rank helper ──────────────────────────────────────
+function _conflictRank(type) {
+  return type === 'error' ? 2 : type === 'warning' ? 1 : 0;
+}
+
+// ── Shared tooltip ────────────────────────────────────────────
+const _TYPE_LABEL = { error: 'CONFLICT', warning: 'WARNING', info: 'INFO' };
+const _TYPE_COLOR = { error: 'var(--color-danger)', warning: 'var(--color-primary)', info: '#60a5fa' };
+
+let _tooltipEl      = null;
+let _tooltipTimer   = null;
+let _tooltipHide    = null;
+let _tooltipAnchor  = null;
+
+function _getTooltipEl() {
+  if (!_tooltipEl) {
+    _tooltipEl = document.createElement('div');
+    _tooltipEl.className = 'conflict-tooltip';
+    _tooltipEl.hidden = true;
+    document.body.appendChild(_tooltipEl);
+    _tooltipEl.addEventListener('mouseenter', () => clearTimeout(_tooltipHide));
+    _tooltipEl.addEventListener('mouseleave', () => {
+      _tooltipHide = setTimeout(_hideTooltip, 100);
+    });
+  }
+  return _tooltipEl;
+}
+
+function _showTooltip(anchorEl, conflict) {
+  clearTimeout(_tooltipTimer);
+  clearTimeout(_tooltipHide);
+  _tooltipAnchor = anchorEl;
+  const el = _getTooltipEl();
+  const color = _TYPE_COLOR[conflict.type];
+  el.style.borderColor = color;
+  el.innerHTML =
+    `<span class="conflict-tip-label" style="color:${color}">${_TYPE_LABEL[conflict.type]}</span>` +
+    `<span class="conflict-tip-msg">${_esc(conflict.message)}</span>` +
+    (conflict.fix ? `<code class="conflict-tip-fix">${_esc(conflict.fix)}</code>` : '');
+  el.hidden = false;
+  _positionTooltip(anchorEl);
+}
+
+function _positionTooltip(anchorEl) {
+  const el  = _getTooltipEl();
+  const isMobile = window.matchMedia('(pointer: coarse)').matches;
+  if (isMobile) {
+    const row = anchorEl.closest('.operator-row');
+    if (!row) return;
+    const rr = row.getBoundingClientRect();
+    el.style.width  = rr.width + 'px';
+    el.style.left   = rr.left  + 'px';
+    el.style.right  = 'auto';
+    el.style.top    = (rr.top + window.scrollY - el.offsetHeight - 8) + 'px';
+  } else {
+    const ir = anchorEl.getBoundingClientRect();
+    el.style.width = '260px';
+    const left = Math.max(4, ir.right - 260);
+    el.style.left  = left + 'px';
+    el.style.right = 'auto';
+    el.style.top   = (ir.top + window.scrollY - el.offsetHeight - 8) + 'px';
+  }
+}
+
+function _hideTooltip() {
+  if (_tooltipEl) _tooltipEl.hidden = true;
+  _tooltipAnchor = null;
+}
+
+document.addEventListener('click', e => {
+  if (_tooltipEl && !_tooltipEl.hidden && !_tooltipEl.contains(e.target)) {
+    _hideTooltip();
+  }
+});
+
+function _attachConflictTooltip(iconEl, conflict) {
+  const isMobile = window.matchMedia('(pointer: coarse)').matches;
+  if (isMobile) {
+    iconEl.addEventListener('click', e => {
+      e.stopPropagation();
+      const el = _getTooltipEl();
+      if (_tooltipAnchor === iconEl && !el.hidden) { _hideTooltip(); return; }
+      _showTooltip(iconEl, conflict);
+    });
+  } else {
+    iconEl.addEventListener('mouseenter', () => {
+      clearTimeout(_tooltipHide);
+      _tooltipTimer = setTimeout(() => _showTooltip(iconEl, conflict), 150);
+    });
+    iconEl.addEventListener('mouseleave', () => {
+      clearTimeout(_tooltipTimer);
+      _tooltipHide = setTimeout(_hideTooltip, 100);
+    });
+  }
+}
+
+// ── Render conflict decorations onto operator rows ────────────
+function renderConflicts(conflicts) {
+  // Clear previous state
+  document.querySelectorAll('.operator-row').forEach(row => {
+    row.classList.remove('conflict-error', 'conflict-warning', 'conflict-info');
+    row.querySelector('.conflict-icon-wrap')?.remove();
+  });
+  document.getElementById('conflict-general-note')?.remove();
+  _hideTooltip();
+
+  if (!conflicts.length) {
+    _updateStrengthConflicts([]);
+    _updateConflictBadge(0);
+    return;
+  }
+
+  // Build index → worst-severity conflict map (one icon per row)
+  const conflictMap = new Map();
+  for (const c of conflicts) {
+    if (c.operatorIndex < 0) continue;
+    const prev = conflictMap.get(c.operatorIndex);
+    if (!prev || _conflictRank(c.type) > _conflictRank(prev.type)) {
+      conflictMap.set(c.operatorIndex, c);
+    }
+  }
+
+  // Decorate rows
+  const rows = document.querySelectorAll('.operator-row');
+  conflictMap.forEach((conflict, idx) => {
+    const row = rows[idx];
+    if (!row) return;
+    row.classList.add(`conflict-${conflict.type}`);
+
+    const icon = document.createElement('span');
+    icon.className = `conflict-icon-wrap conflict-icon-${conflict.type}`;
+    icon.textContent = conflict.type === 'info' ? 'ℹ' : '⚠';
+    icon.setAttribute('role', 'img');
+    icon.setAttribute('aria-label', _TYPE_LABEL[conflict.type]);
+
+    const actions = row.querySelector('.operator-row-actions');
+    if (actions) row.insertBefore(icon, actions);
+
+    _attachConflictTooltip(icon, conflict);
+  });
+
+  // General info note (operatorIndex: -1)
+  const _GENERAL_KEY = 'df-conflict-note-dismissed';
+  const generalConflicts = conflicts.filter(c => c.operatorIndex < 0);
+  if (generalConflicts.length && !sessionStorage.getItem(_GENERAL_KEY)) {
+    const note = document.createElement('div');
+    note.id = 'conflict-general-note';
+    note.className = 'conflict-general-note';
+    note.innerHTML =
+      `<span class="conflict-note-icon">ℹ</span>` +
+      `<span>${_esc(generalConflicts[0].message)}</span>` +
+      `<button class="conflict-note-dismiss" aria-label="Dismiss">×</button>`;
+    note.querySelector('.conflict-note-dismiss').addEventListener('click', () => {
+      sessionStorage.setItem(_GENERAL_KEY, '1');
+      note.remove();
+    });
+    const opList = document.getElementById('operator-list');
+    opList?.parentNode?.insertBefore(note, opList);
+  }
+
+  _updateStrengthConflicts(conflicts);
+  _updateConflictBadge(conflictMap.size);
+}
+
+// ── Strength meter conflict summary ──────────────────────────
+function _updateStrengthConflicts(conflicts) {
+  let el = document.getElementById('sm-conflicts');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sm-conflicts';
+    el.className = 'sm-conflicts';
+    el.style.transition = 'opacity 0.2s';
+    document.getElementById('sm-tips')?.after(el);
+  }
+
+  // Deduplicate by message
+  const seen = new Set();
+  const unique = conflicts.filter(c => {
+    if (seen.has(c.message)) return false;
+    seen.add(c.message);
+    return true;
+  });
+
+  if (!unique.length) {
+    el.innerHTML = '';
+    el.style.opacity = '0';
+    return;
+  }
+
+  const MAX = 3;
+  const shown = unique.slice(0, MAX);
+  const extra = unique.length - MAX;
+
+  el.innerHTML =
+    `<div class="sm-conflicts-header">CONFLICTS DETECTED</div>` +
+    shown.map(c => {
+      const brief = c.message.split(/[.—]/)[0].trim();
+      return `<div class="sm-conflict-item"><span>⚠</span><span>${_esc(brief)}</span></div>`;
+    }).join('') +
+    (extra > 0 ? `<div class="sm-conflicts-more">+${extra} more</div>` : '');
+  el.style.opacity = '1';
+}
+
+// ── Builder title conflict badge ──────────────────────────────
+function _updateConflictBadge(count) {
+  const el = window.builder?.elBuilderTitle;
+  if (!el) return;
+  el.textContent = window.builder._baseBuilderTitle;
+  if (count > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'conflict-title-badge';
+    badge.textContent = ` ⚠ ${count}`;
+    badge.addEventListener('click', () => {
+      document.querySelector(
+        '.operator-row.conflict-error, .operator-row.conflict-warning, .operator-row.conflict-info'
+      )?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    el.appendChild(badge);
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 // HUMAN VERIFICATION & ETHICS GATE

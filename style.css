@@ -4596,3 +4596,184 @@ select:disabled {
   color: var(--text-dim);
   border: 1px solid rgba(99, 102, 241, 0.2);
 }
+
+/* ============================================================
+   CONFLICT DETECTOR
+   ============================================================ */
+
+/* ── Operator row conflict left border ─────────────────────── */
+.operator-row.conflict-error {
+  border-left: 3px solid var(--color-danger);
+  transition: border-left 200ms;
+}
+.operator-row.conflict-warning {
+  border-left: 3px solid var(--color-primary);
+  transition: border-left 200ms;
+}
+.operator-row.conflict-info {
+  border-left: 3px solid #60a5fa;
+  transition: border-left 200ms;
+}
+
+/* ── Warning icon inside row ───────────────────────────────── */
+.conflict-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 13px;
+  flex-shrink: 0;
+  cursor: help;
+  margin-left: 8px;
+  user-select: none;
+}
+
+.conflict-icon-error   { color: var(--color-danger);  }
+.conflict-icon-warning { color: var(--color-primary);  }
+.conflict-icon-info    { color: #60a5fa; }
+
+/* ── Conflict tooltip ──────────────────────────────────────── */
+.conflict-tooltip {
+  position: absolute;
+  width: 260px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--color-text);
+  z-index: 9900;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.conflict-tip-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.conflict-tip-msg {
+  display: block;
+}
+
+.conflict-tip-fix {
+  display: block;
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--color-secondary);
+  margin-top: 6px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+/* Down-pointing arrow */
+.conflict-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  right: 14px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--bg-secondary);
+}
+.conflict-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  right: 13px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid var(--border-color);
+}
+
+/* Mobile: full row width */
+@media (pointer: coarse) {
+  .conflict-tooltip {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* ── General info note above operator list ─────────────────── */
+.conflict-general-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(96, 165, 250, 0.08);
+  border-left: 3px solid #60a5fa;
+  padding: 8px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  color: #60a5fa;
+  margin-bottom: 8px;
+}
+
+.conflict-note-icon {
+  flex-shrink: 0;
+}
+
+.conflict-note-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+/* ── Builder title badge ───────────────────────────────────── */
+.conflict-title-badge {
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.conflict-title-badge:hover {
+  text-decoration: underline;
+}
+
+/* ── Strength meter conflict summary ───────────────────────── */
+.sm-conflicts {
+  margin-top: 8px;
+  transition: opacity 0.2s;
+}
+
+.sm-conflicts-header {
+  font-size: 10px;
+  font-family: var(--font);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-danger);
+  margin-bottom: 4px;
+}
+
+.sm-conflict-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-family: var(--font);
+  font-size: 11px;
+  color: rgba(239, 68, 68, 0.85);
+  padding: 2px 0;
+}
+
+.sm-conflicts-more {
+  font-family: var(--font);
+  font-size: 11px;
+  color: rgba(239, 68, 68, 0.6);
+  font-style: italic;
+  padding-top: 2px;
+}
