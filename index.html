@@ -160,6 +160,21 @@
             <span class="preview-placeholder">YOUR DORK WILL APPEAR HERE</span>
           </div>
 
+          <!-- Dork Strength Meter — JS: StrengthMeter.update() on every operator change -->
+          <div id="strength-meter" class="strength-meter">
+            <div class="section-header section-header-spaced">
+              <span class="section-title">QUERY STRENGTH</span>
+              <span class="section-line"></span>
+            </div>
+            <div class="sm-score-row">
+              <span id="sm-score" class="sm-score-num">0.0</span>
+              <span id="sm-label" class="sm-tier-label">NO QUERY</span>
+            </div>
+            <div class="sm-track"><div id="sm-fill" class="sm-fill"></div></div>
+            <div id="sm-verdict" class="sm-verdict">Add operators to begin building your search.</div>
+            <div id="sm-tips" class="sm-tips"></div>
+          </div>
+
           <!-- JS: id="btn-copy-query" click → copyQuery() -->
           <button id="btn-copy-query" class="btn btn-full">COPY QUERY</button>
 
@@ -663,6 +678,50 @@
   <!-- Wizard overlay — DOM injected by DorkWizard.init() in app.js -->
   <!-- Wizard flash banner -->
   <div id="wizard-banner" hidden><span id="wizard-banner-text"></span></div>
+
+  <!-- ============================================================
+       HUMAN VERIFICATION & ETHICS GATE
+       Shown on first visit and every 7 days.
+       JS: VerificationGate.init() in app.js — visible by default,
+       hidden immediately if localStorage key is fresh.
+       ============================================================ -->
+  <div id="verify-overlay">
+    <div id="verify-panel">
+
+      <!-- TOP: Bot challenge -->
+      <div class="verify-header">VERIFY YOU ARE HUMAN</div>
+      <div class="verify-subtext">Complete this check to continue</div>
+      <div id="verify-challenge"></div>
+      <div id="verify-human-ok" class="verify-human-ok" hidden>&#x2713; HUMAN VERIFIED</div>
+
+      <!-- MIDDLE: Ethics agreement -->
+      <div class="verify-section-header">ETHICAL USE AGREEMENT</div>
+      <div class="verify-ethics-box">
+        <p>DorkForge is an educational tool for legal OSINT research, security testing on systems you own or have explicit permission to test, journalistic investigation, and academic research.</p>
+        <p>By using DorkForge you confirm that you:</p>
+        <ul>
+          <li>Will not use this tool to stalk, harass, or harm any individual</li>
+          <li>Will not use this tool to access systems without authorization</li>
+          <li>Will not use search results to facilitate illegal activity</li>
+          <li>Understand that exposing others&#x27; private data without consent may be illegal in your jurisdiction</li>
+          <li>Take full responsibility for how you use the information found</li>
+        </ul>
+        <p>DorkForge does not store your searches, collect your data, or have visibility into how you use this tool. All searches open directly in third-party search engines.</p>
+      </div>
+      <label class="verify-agree-row" for="verify-agree-check">
+        <span class="verify-cb-wrap">
+          <input type="checkbox" id="verify-agree-check" />
+          <span class="verify-cb-ui"></span>
+        </span>
+        <span class="verify-agree-text">I have read and agree to use DorkForge ethically and legally</span>
+      </label>
+
+      <!-- BOTTOM: Enter button + footer -->
+      <button id="verify-enter-btn" class="verify-enter-btn" disabled>ENTER DORKFORGE</button>
+      <div id="verify-footer-note" class="verify-footer-note"></div>
+
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

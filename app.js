@@ -728,6 +728,7 @@ class Builder {
     } else {
       this.elPreview.textContent = query;
     }
+    StrengthMeter.update(this.operators);
   }
 
   // ── PUBLIC: copy preview text to clipboard ────────────────────
@@ -3108,9 +3109,9 @@ const Onboarding = {
     { selector: '#engine-grid',    title: 'Search Engines', text: 'Choose which search engines to target. Launch all at once with one click.' },
   ],
 
-  init() {
+  init(deferWelcome = false) {
     this._createDOM();
-    if (!localStorage.getItem('dorkforge_visited')) {
+    if (!deferWelcome && !localStorage.getItem('dorkforge_visited')) {
       this._showWelcome();
     }
   },
@@ -3364,9 +3365,353 @@ function initGlobalHotkeys() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// DORK STRENGTH METER
+// ══════════════════════════════════════════════════════════════
+
+function scoreQuery(operators) {
+  if (!operators || operators.length === 0) return 0.0;
+
+  let score = 0;
+  const types = operators.map(o => o.type);
+  const count = operators.length;
+
+  // Operator count
+  if (count >= 4) score += 2.5;
+  else if (count === 3) score += 2.0;
+  else if (count === 2) score += 1.5;
+  else score += 1.0;
+
+  // Diversity
+  const uniqueTypes = new Set(types).size;
+  if (uniqueTypes >= 4) score += 1.5;
+  else if (uniqueTypes === 3) score += 1.0;
+  else if (uniqueTypes === 2) score += 0.5;
+
+  // Specificity bonuses
+  if (types.includes('site'))                                        score += 1.5;
+  if (types.includes('filetype') || types.includes('ext'))          score += 1.0;
+  if (types.includes('intitle'))                                     score += 0.8;
+  if (types.includes('inurl'))                                       score += 0.8;
+  if (types.includes('intext'))                                      score += 0.5;
+  if (types.includes('before') || types.includes('after'))          score += 0.7;
+  if (types.includes('exact'))                                       score += 0.6;
+  if (types.some(t => t.includes('_exclude') || t === 'exclude'))   score += 0.5;
+  if (types.includes('OR'))                                          score += 0.3;
+
+  // Penalties
+  if (count === 1) score -= 0.5;
+  if (uniqueTypes === 1 && count > 1) score -= 0.5;
+  if (!types.includes('exact')) score -= 0.2;
+
+  // site: with broad value (*.com / .net / .org etc.)
+  const siteOps = operators.filter(o => o.type === 'site');
+  if (siteOps.some(o => /^\*?\.(com|net|org|io|co)$/.test((o.value || '').trim()))) score -= 0.5;
+
+  // intext: with single common word
+  const commonWords = new Set(['password','login','admin','user','the','and','or','of','a']);
+  const intextOps = operators.filter(o => o.type === 'intext');
+  if (intextOps.some(o => {
+    const words = (o.value || '').trim().split(/\s+/);
+    return words.length === 1 && commonWords.has(words[0].toLowerCase());
+  })) score -= 0.3;
+
+  return Math.round(Math.min(10, Math.max(0, score)) * 10) / 10;
+}
+
+const StrengthMeter = {
+  _current: 0,
+
+  _tier(score) {
+    if (score < 2.0) return { label: 'NO QUERY', color: '#6b7280', verdict: 'Add operators to begin building your search.' };
+    if (score < 4.0) return { label: 'TOO BROAD', color: '#ef4444', verdict: 'This will return millions of unrelated results.' };
+    if (score < 6.0) return { label: 'WEAK', color: '#f97316', verdict: 'Getting there — add more context to narrow results.' };
+    if (score < 7.5) return { label: 'MODERATE', color: '#eab308', verdict: 'Decent query — a few more operators could sharpen this.' };
+    if (score < 9.0) return { label: 'STRONG', color: '#84cc16', verdict: 'Good specificity — results should be fairly targeted.' };
+    return { label: 'SURGICAL', color: '#00f0ff', verdict: 'Highly targeted query. Expect precise results.' };
+  },
+
+  _tips(operators) {
+    const types = operators.map(o => o.type);
+    const tips = [];
+    const has = t => types.includes(t);
+
+    if (!has('site'))
+      tips.push('💡 Add site: to limit results to one domain');
+    if (!has('filetype') && !has('ext') && (has('intext') || has('intitle')))
+      tips.push('💡 Add filetype:pdf or filetype:xlsx to find specific files');
+    if (!has('exact'))
+      tips.push('💡 Wrap key phrases in quotes for exact matches: "phrase here"');
+    if (operators.length === 1)
+      tips.push('💡 Add more operators — each one narrows your results further');
+    if (!has('before') && !has('after'))
+      tips.push('💡 Add after:2023-01-01 to find only recent results');
+    if (new Set(types).size === 1 && operators.length > 1)
+      tips.push('💡 Mix operator types — combine site: with intitle: for better targeting');
+    if (has('OR') && !has('site') && !has('filetype'))
+      tips.push('💡 OR broadens results — pair it with site: to keep results focused');
+
+    return tips.slice(0, 3);
+  },
+
+  update(operators) {
+    const target = scoreQuery(operators);
+    const tier = this._tier(target);
+
+    const elScore   = document.getElementById('sm-score');
+    const elLabel   = document.getElementById('sm-label');
+    const elFill    = document.getElementById('sm-fill');
+    const elVerdict = document.getElementById('sm-verdict');
+    const elTips    = document.getElementById('sm-tips');
+    if (!elScore) return;
+
+    // Animate score number
+    const from = this._current;
+    this._current = target;
+    const start = performance.now();
+    const dur = 300;
+    const step = now => {
+      const t = Math.min(1, (now - start) / dur);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      elScore.textContent = (from + (target - from) * ease).toFixed(1);
+      if (t < 1) requestAnimationFrame(step);
+      else elScore.textContent = target.toFixed(1);
+    };
+    requestAnimationFrame(step);
+
+    elScore.style.color   = tier.color;
+    elLabel.textContent   = tier.label;
+    elLabel.style.color   = tier.color;
+    elFill.style.width    = `${(target / 10) * 100}%`;
+    elFill.style.background = tier.color;
+    elVerdict.textContent = tier.verdict;
+
+    if (target < 8.0 && operators.length > 0) {
+      const tips = this._tips(operators);
+      elTips.innerHTML = tips.map(t => `<div class="sm-tip">${t}</div>`).join('');
+    } else {
+      elTips.innerHTML = '';
+    }
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
+// HUMAN VERIFICATION & ETHICS GATE
+// ══════════════════════════════════════════════════════════════
+
+const VerificationGate = {
+  _challengeDone: false,
+  _agreeDone: false,
+  _WEEK_MS: 7 * 24 * 60 * 60 * 1000,
+
+  // Returns true if gate was shown (caller should defer onboarding)
+  init() {
+    const stored = localStorage.getItem('dorkforge_verified');
+    const ts = stored ? parseInt(stored, 10) : 0;
+    const needsGate = !ts || (Date.now() - ts) >= this._WEEK_MS;
+
+    this._renderFooter(stored ? new Date(ts) : null);
+
+    if (!needsGate) {
+      document.getElementById('verify-overlay').classList.add('verify-hidden');
+      return false;
+    }
+
+    this._show();
+    return true;
+  },
+
+  _show() {
+    document.body.style.overflow = 'hidden';
+
+    const type = Math.floor(Math.random() * 3);
+    const container = document.getElementById('verify-challenge');
+    if (type === 0) this._initChallengeA(container);
+    else if (type === 1) this._initChallengeB(container);
+    else this._initChallengeC(container);
+
+    document.getElementById('verify-agree-check').addEventListener('change', e => {
+      this._agreeDone = e.target.checked;
+      this._checkReady();
+    });
+
+    document.getElementById('verify-enter-btn').addEventListener('click', () => {
+      if (!this._challengeDone || !this._agreeDone) return;
+      this._dismiss();
+    });
+  },
+
+  _challengeComplete() {
+    this._challengeDone = true;
+    const ok = document.getElementById('verify-human-ok');
+    if (ok) ok.hidden = false;
+    this._checkReady();
+  },
+
+  _checkReady() {
+    const btn = document.getElementById('verify-enter-btn');
+    if (btn) btn.disabled = !(this._challengeDone && this._agreeDone);
+  },
+
+  _dismiss() {
+    localStorage.setItem('dorkforge_verified', String(Date.now()));
+    const overlay = document.getElementById('verify-overlay');
+    overlay.classList.add('verify-fade-out');
+    document.body.style.overflow = '';
+    setTimeout(() => {
+      overlay.classList.add('verify-hidden');
+      overlay.classList.remove('verify-fade-out');
+      // Show welcome modal if first visit
+      if (!localStorage.getItem('dorkforge_visited')) {
+        Onboarding._showWelcome();
+      }
+    }, 420);
+  },
+
+  _renderFooter(lastDate) {
+    const el = document.getElementById('verify-footer-note');
+    if (!el) return;
+    el.textContent = lastDate
+      ? `This verification resets weekly. Last verified: ${lastDate.toLocaleDateString()}`
+      : 'This verification resets weekly. Last verified: Never';
+  },
+
+  // ── Challenge A: click amber squares ──────────────────────────
+  _initChallengeA(container) {
+    const TOTAL = 16;
+    const amberCount = 4 + Math.floor(Math.random() * 3); // 4–6
+    const amberSet = new Set();
+    while (amberSet.size < amberCount) amberSet.add(Math.floor(Math.random() * TOTAL));
+
+    const clicked = new Set();
+
+    container.innerHTML = `
+      <p class="vc-label">Click all amber squares to continue</p>
+      <div class="vc-grid" id="vc-grid-a"></div>`;
+
+    const grid = container.querySelector('#vc-grid-a');
+
+    for (let i = 0; i < TOTAL; i++) {
+      const sq = document.createElement('button');
+      sq.type = 'button';
+      sq.className = 'vc-square' + (amberSet.has(i) ? ' vc-square-amber' : '');
+      sq.dataset.isAmber = amberSet.has(i) ? '1' : '0';
+      sq.dataset.idx = i;
+
+      sq.addEventListener('click', () => {
+        if (this._challengeDone) return;
+        if (sq.dataset.isAmber === '1') {
+          clicked.add(i);
+          sq.classList.add('vc-square-done');
+          sq.textContent = '✓';
+          if (clicked.size === amberCount) this._challengeComplete();
+        } else {
+          sq.classList.add('vc-square-error');
+          setTimeout(() => {
+            clicked.clear();
+            grid.querySelectorAll('.vc-square-done').forEach(s => {
+              s.classList.remove('vc-square-done');
+              s.textContent = '';
+            });
+            sq.classList.remove('vc-square-error');
+          }, 650);
+        }
+      });
+      grid.appendChild(sq);
+    }
+  },
+
+  // ── Challenge B: type the code ────────────────────────────────
+  _initChallengeB(container) {
+    const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const makeCode = () => Array.from({ length: 6 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
+    const renderCode = code => code.split('').map(ch => {
+      const color = Math.random() > 0.5 ? '#f59e0b' : '#84cc16';
+      const ls = (Math.random() * 0.18 - 0.04).toFixed(3);
+      return `<span style="color:${color};letter-spacing:${ls}em">${ch}</span>`;
+    }).join('');
+
+    let code = makeCode();
+
+    container.innerHTML = `
+      <p class="vc-label">Type the code shown below to continue</p>
+      <div class="vc-code-display" id="vc-code-disp">${renderCode(code)}</div>
+      <input type="text" id="vc-code-input" class="vc-code-input"
+             placeholder="Enter code…" maxlength="6"
+             autocomplete="off" spellcheck="false" />`;
+
+    const input = container.querySelector('#vc-code-input');
+    const disp  = container.querySelector('#vc-code-disp');
+
+    input.addEventListener('input', () => {
+      if (this._challengeDone) return;
+      if (input.value.toUpperCase() === code) {
+        this._challengeComplete();
+        input.disabled = true;
+      } else if (input.value.length >= 6) {
+        input.classList.add('vc-shake');
+        setTimeout(() => {
+          input.classList.remove('vc-shake');
+          input.value = '';
+          code = makeCode();
+          disp.innerHTML = renderCode(code);
+        }, 600);
+      }
+    });
+  },
+
+  // ── Challenge C: drag to confirm ──────────────────────────────
+  _initChallengeC(container) {
+    container.innerHTML = `
+      <div class="vc-drag-track" id="vc-drag-track">
+        <div class="vc-drag-fill" id="vc-drag-fill"></div>
+        <div class="vc-drag-thumb" id="vc-drag-thumb" tabindex="0"></div>
+        <span class="vc-drag-label" id="vc-drag-label">DRAG TO CONFIRM YOU ARE HUMAN →</span>
+      </div>`;
+
+    const track = container.querySelector('#vc-drag-track');
+    const fill  = container.querySelector('#vc-drag-fill');
+    const thumb = container.querySelector('#vc-drag-thumb');
+    const label = container.querySelector('#vc-drag-label');
+
+    const THUMB_W = 44;
+    const getMax = () => track.getBoundingClientRect().width - THUMB_W;
+
+    const setPos = clientX => {
+      if (this._challengeDone) return;
+      const rect = track.getBoundingClientRect();
+      const max = getMax();
+      const pos = Math.max(0, Math.min(max, clientX - rect.left - THUMB_W / 2));
+      thumb.style.left = pos + 'px';
+      fill.style.width = (pos / max * 100) + '%';
+      if (pos / max >= 0.9) {
+        thumb.style.left = max + 'px';
+        fill.style.width = '100%';
+        fill.style.background = 'var(--amber)';
+        label.textContent = '✓ CONFIRMED';
+        this._challengeComplete();
+      }
+    };
+
+    thumb.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      thumb.setPointerCapture(e.pointerId);
+      thumb.addEventListener('pointermove', onMove);
+      thumb.addEventListener('pointerup', onUp, { once: true });
+      thumb.addEventListener('pointercancel', onUp, { once: true });
+    });
+
+    const onMove = e => setPos(e.clientX);
+    const onUp = () => thumb.removeEventListener('pointermove', onMove);
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+  // Verification gate must run first — hides itself or blocks app access
+  const gateShown = VerificationGate.init();
+
   initTabs();
   initSettings();
   initExport();
@@ -3379,7 +3724,7 @@ document.addEventListener('DOMContentLoaded', () => {
   DorkWizard.init();
   initOperatorTooltip();
   initBuilderEmptyState();
-  Onboarding.init();
+  Onboarding.init(gateShown); // defer welcome modal if gate is active
   HotkeyOverlay.init();
   initGlobalHotkeys();
 
