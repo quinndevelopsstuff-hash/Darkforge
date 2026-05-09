@@ -722,8 +722,9 @@ class Builder {
   // ── Write buildQuery() result to the preview box ───────────────
   _updatePreview() {
     const query = this.buildQuery();
+    console.log('[DorkForge] _updatePreview:', query || '(empty)');
     if (!query.trim()) {
-      this.elPreview.innerHTML = '<span class="preview-placeholder">site:example.com filetype:pdf</span>';
+      this.elPreview.innerHTML = '<span class="preview-placeholder">YOUR DORK WILL APPEAR HERE</span>';
     } else {
       this.elPreview.textContent = query;
     }
@@ -2355,6 +2356,15 @@ const TemplateManager = {
         if (tmpl) this._loadTemplate(tmpl);
       });
     });
+
+    grid.querySelectorAll('.card-explain-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const panel = btn.closest('.template-card').querySelector('.card-explain');
+        if (!panel) return;
+        panel.hidden = !panel.hidden;
+        btn.textContent = panel.hidden ? '?' : '×';
+      });
+    });
   },
 
   // ── Build HTML for a single template card ─────────────────────
@@ -2362,7 +2372,6 @@ const TemplateManager = {
     const cat   = CATEGORIES.find(c => c.id === t.category);
     const icon  = cat ? cat.icon : '🔍';
 
-    // Inline query preview — same logic as Builder.buildQuery()
     const preview = t.operators.length
       ? t.operators.map(op => {
           const def = OPERATORS[op.type];
@@ -2374,18 +2383,47 @@ const TemplateManager = {
       .map(id => ENGINES[id] ? `<span class="engine-badge">${_esc(ENGINES[id].label)}</span>` : '')
       .join('');
 
-    const hasSite   = t.operators.some(op => op.type === 'site');
-    const badgeCls  = hasSite ? 'card-badge-site' : 'card-badge-generic';
-    const badgeTxt  = hasSite ? 'SITE-SPECIFIC'   : 'GENERIC';
+    const hasSite  = t.operators.some(op => op.type === 'site');
+    const badgeCls = hasSite ? 'card-badge-site' : 'card-badge-generic';
+    const badgeTxt = hasSite ? 'SITE-SPECIFIC'   : 'GENERIC';
+
+    const DUMMY = { '[FIRSTNAME]':'John','[LASTNAME]':'Doe','[DOMAIN]':'example.com','[CITY]':'Chicago','[STATE]':'Illinois','[EMAIL]':'john@example.com','[PHONE]':'5551234567','[USERNAME]':'jdoe','[EMPLOYER]':'Acme Corp','[AGE]':'34','[ADDRESS]':'123 Main St' };
+    const exampleParts = t.operators.slice(0, 4).map(op => {
+      const def = OPERATORS[op.type];
+      if (!def) return '';
+      let v = op.value;
+      for (const [k, r] of Object.entries(DUMMY)) v = v.split(k).join(r);
+      return def.syntax.replace('{value}', v);
+    }).filter(Boolean);
+    const exampleStr = exampleParts.join(' ').trim() || preview;
+
+    const sensitiveCategories = ['person', 'devices', 'code'];
+    const sensitiveSubcats    = ['criminal', 'associates'];
+    const isSensitive = sensitiveCategories.includes(t.category) ||
+      sensitiveSubcats.includes(t.subcategory) ||
+      t.engines.some(e => PEOPLE_ENGINES.has(e));
+
+    const cautionHtml = isSensitive
+      ? `<div class="card-caution"><span class="card-caution-icon">⚠</span> USE WITH CAUTION</div>`
+      : '';
 
     return `<article class="template-card" data-category="${_esc(t.category)}">
       <div class="card-header">
         <span class="card-cat-icon">${icon}</span>${_esc(t.name)}
         <span class="card-badge ${badgeCls}">${badgeTxt}</span>
+        <button class="card-explain-btn" data-tid="${_esc(t.id)}" aria-label="Explain this template" title="What does this find?">?</button>
       </div>
       <div class="card-body">
         <code class="card-query">${_esc(preview)}</code>
         <p class="card-desc">${_esc(t.description)}</p>
+      </div>
+      <div class="card-explain" hidden>
+        ${cautionHtml}
+        <p class="card-explain-text">${_esc(t.description)}</p>
+        <div class="card-explain-example">
+          <span class="card-explain-label">EXAMPLE QUERY:</span>
+          <code class="card-explain-code">${_esc(exampleStr)}</code>
+        </div>
       </div>
       <div class="card-footer">
         <div class="engine-badges">${badges}</div>
@@ -3000,6 +3038,332 @@ const DorkWizard = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// OPERATOR TOOLTIP
+// ══════════════════════════════════════════════════════════════
+function initOperatorTooltip() {
+  const helpBtn = document.getElementById('op-help-btn');
+  const panel   = document.getElementById('op-tooltip-panel');
+  const elName  = document.getElementById('op-tip-name');
+  const elDesc  = document.getElementById('op-tip-desc');
+  const elEx    = document.getElementById('op-tip-example');
+  const sel     = document.getElementById('op-select');
+  if (!helpBtn || !panel || !sel) return;
+
+  function updatePanel() {
+    const key = sel.value;
+    const def = OPERATORS[key];
+    if (!def) {
+      elName.textContent = key;
+      elDesc.textContent = '';
+      elEx.textContent   = '';
+      return;
+    }
+    elName.textContent = def.label || key;
+    elDesc.textContent = def.description || '';
+    const eg = def.placeholder ? def.syntax.replace('{value}', def.placeholder) : def.syntax;
+    elEx.textContent   = eg ? `Example: ${eg}` : '';
+  }
+
+  helpBtn.addEventListener('click', () => {
+    const open = !panel.hidden;
+    panel.hidden = open;
+    helpBtn.classList.toggle('op-help-active', !open);
+    if (!open) updatePanel();
+  });
+
+  sel.addEventListener('change', () => {
+    if (!panel.hidden) updatePanel();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// BUILDER EMPTY STATE — quick-start chip wiring
+// ══════════════════════════════════════════════════════════════
+function initBuilderEmptyState() {
+  document.querySelectorAll('.beu-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      DorkWizard.answers.intent = btn.dataset.intent;
+      DorkWizard.answers.chips  = new Set();
+      DorkWizard.answers.fields = {};
+      DorkWizard.step = 2;
+      DorkWizard.open();
+      // Override _render to start at step 2 without animation delay
+      requestAnimationFrame(() => requestAnimationFrame(() => DorkWizard._render()));
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ONBOARDING — Welcome modal + Mini tour
+// ══════════════════════════════════════════════════════════════
+const Onboarding = {
+  _tourStep: 0,
+  _highlighted: null,
+
+  TOUR_STEPS: [
+    { selector: '#nav-hamburger',  title: 'Navigation', text: 'Navigation lives here — switch between Builder, Templates, History, and more.' },
+    { selector: '#btn-wizard',     title: 'Wizard Mode', text: 'New to dorking? The Wizard builds your search automatically — just answer a few questions.' },
+    { selector: '#operator-list',  title: 'Operators', text: 'Add search operators here to construct your query. Each operator narrows or focuses your search.' },
+    { selector: '#query-preview',  title: 'Live Preview', text: 'Your finished dork appears here in real time. Copy it or launch it directly to any search engine.' },
+    { selector: '#engine-grid',    title: 'Search Engines', text: 'Choose which search engines to target. Launch all at once with one click.' },
+  ],
+
+  init() {
+    this._createDOM();
+    if (!localStorage.getItem('dorkforge_visited')) {
+      this._showWelcome();
+    }
+  },
+
+  _createDOM() {
+    // Welcome modal
+    const wel = document.createElement('div');
+    wel.id = 'onboard-overlay';
+    wel.innerHTML = `
+      <div id="onboard-modal">
+        <div class="onb-logo">WELCOME TO DORKFORGE</div>
+        <div class="onb-version">v1.0 — Open Source OSINT Dork Builder</div>
+        <div class="onb-body">
+          <p>DorkForge helps you build powerful Google search queries called "dorks" — special phrases that uncover information Google's normal search hides from view.</p>
+          <p>Use it to research people, companies, exposed files, and much more. Everything runs in your browser — no accounts, no tracking, no data sent anywhere.</p>
+        </div>
+        <div class="onb-features">
+          <div class="onb-feat"><span class="onb-feat-icon">⚡</span><span class="onb-feat-label">Wizard Mode</span><span class="onb-feat-desc">New? Start here</span></div>
+          <div class="onb-feat"><span class="onb-feat-icon">📁</span><span class="onb-feat-label">Templates</span><span class="onb-feat-desc">90+ ready searches</span></div>
+          <div class="onb-feat"><span class="onb-feat-icon">🔍</span><span class="onb-feat-label">Builder</span><span class="onb-feat-desc">Custom queries</span></div>
+        </div>
+        <div class="onb-actions">
+          <button id="onb-tour" class="onb-btn-tour">SHOW ME AROUND</button>
+          <button id="onb-skip" class="onb-btn-skip">SKIP — TAKE ME TO THE APP</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wel);
+
+    document.getElementById('onb-tour').addEventListener('click', () => {
+      localStorage.setItem('dorkforge_visited', 'true');
+      this._hideWelcome();
+      this._startTour();
+    });
+    document.getElementById('onb-skip').addEventListener('click', () => {
+      localStorage.setItem('dorkforge_visited', 'true');
+      this._hideWelcome();
+    });
+
+    // Tour overlay
+    const tour = document.createElement('div');
+    tour.id = 'tour-overlay';
+    tour.hidden = true;
+    tour.innerHTML = `
+      <div id="tour-tooltip" class="tour-tooltip">
+        <div class="tour-tip-title" id="tour-tip-title"></div>
+        <div class="tour-tip-text" id="tour-tip-text"></div>
+        <div class="tour-controls">
+          <div class="tour-dots" id="tour-dots"></div>
+          <div class="tour-btns">
+            <button class="tour-btn" id="tour-prev">← PREV</button>
+            <button class="tour-btn tour-btn-next" id="tour-next">NEXT →</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(tour);
+
+    document.getElementById('tour-prev').addEventListener('click', () => this._goTourStep(this._tourStep - 1));
+    document.getElementById('tour-next').addEventListener('click', () => {
+      if (this._tourStep >= this.TOUR_STEPS.length - 1) this._endTour();
+      else this._goTourStep(this._tourStep + 1);
+    });
+    tour.addEventListener('click', e => { if (e.target === tour) this._endTour(); });
+  },
+
+  _showWelcome() {
+    document.getElementById('onboard-overlay').style.display = 'flex';
+  },
+
+  _hideWelcome() {
+    document.getElementById('onboard-overlay').style.display = 'none';
+  },
+
+  _startTour() {
+    this._tourStep = 0;
+    document.getElementById('tour-overlay').hidden = false;
+    this._renderTourStep();
+  },
+
+  _goTourStep(n) {
+    this._clearHighlight();
+    this._tourStep = Math.max(0, Math.min(n, this.TOUR_STEPS.length - 1));
+    this._renderTourStep();
+  },
+
+  _renderTourStep() {
+    const step = this.TOUR_STEPS[this._tourStep];
+    const el   = document.querySelector(step.selector);
+
+    this._clearHighlight();
+    if (el) {
+      el.classList.add('tour-highlight');
+      this._highlighted = el;
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    document.getElementById('tour-tip-title').textContent = step.title;
+    document.getElementById('tour-tip-text').textContent  = step.text;
+
+    const dots = this.TOUR_STEPS.map((_, i) =>
+      `<span class="tour-dot ${i === this._tourStep ? 'tour-dot-active' : ''}">●</span>`
+    ).join('');
+    document.getElementById('tour-dots').innerHTML = dots;
+
+    const prevBtn = document.getElementById('tour-prev');
+    const nextBtn = document.getElementById('tour-next');
+    prevBtn.disabled = this._tourStep === 0;
+    nextBtn.textContent = this._tourStep >= this.TOUR_STEPS.length - 1 ? 'FINISH' : 'NEXT →';
+
+    if (el) {
+      this._positionTooltip(el);
+    }
+  },
+
+  _positionTooltip(el) {
+    const tooltip = document.getElementById('tour-tooltip');
+    const rect = el.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+
+    tooltip.style.position = 'fixed';
+    tooltip.style.maxWidth = '320px';
+
+    const below = rect.bottom + 16 + 160 < vh;
+    if (below) {
+      tooltip.style.top  = `${rect.bottom + 12}px`;
+      tooltip.style.left = `${Math.min(Math.max(rect.left, 12), vw - 340)}px`;
+    } else {
+      tooltip.style.top  = `${Math.max(rect.top - 170, 60)}px`;
+      tooltip.style.left = `${Math.min(Math.max(rect.left, 12), vw - 340)}px`;
+    }
+  },
+
+  _clearHighlight() {
+    if (this._highlighted) {
+      this._highlighted.classList.remove('tour-highlight');
+      this._highlighted = null;
+    }
+  },
+
+  _endTour() {
+    this._clearHighlight();
+    document.getElementById('tour-overlay').hidden = true;
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
+// HOTKEY OVERLAY
+// ══════════════════════════════════════════════════════════════
+const HotkeyOverlay = {
+  _open: false,
+
+  init() {
+    this._createDOM();
+  },
+
+  _createDOM() {
+    const el = document.createElement('div');
+    el.id = 'hotkey-overlay';
+    el.hidden = true;
+    el.innerHTML = `
+      <div id="hotkey-modal">
+        <div class="hk-header">
+          <span class="hk-title">KEYBOARD SHORTCUTS</span>
+          <button class="hk-close" id="hk-close">×</button>
+        </div>
+        <table class="hk-table">
+          <tbody>
+            <tr><td class="hk-key">Ctrl + Enter</td><td class="hk-desc">Launch current query</td></tr>
+            <tr><td class="hk-key">Ctrl + K</td><td class="hk-desc">Focus operator selector</td></tr>
+            <tr><td class="hk-key">Ctrl + Z</td><td class="hk-desc">Remove last operator</td></tr>
+            <tr><td class="hk-key">W</td><td class="hk-desc">Open Wizard (when not typing)</td></tr>
+            <tr><td class="hk-key">T</td><td class="hk-desc">Go to Templates tab</td></tr>
+            <tr><td class="hk-key">H</td><td class="hk-desc">Go to History tab</td></tr>
+            <tr><td class="hk-key">Escape</td><td class="hk-desc">Close any open panel/modal</td></tr>
+            <tr><td class="hk-key">?</td><td class="hk-desc">Open/close this overlay</td></tr>
+          </tbody>
+        </table>
+        <div class="hk-footer">Press Escape or ? to close</div>
+      </div>`;
+    document.body.appendChild(el);
+    document.getElementById('hk-close').addEventListener('click', () => this.close());
+    el.addEventListener('click', e => { if (e.target === el) this.close(); });
+  },
+
+  open() {
+    document.getElementById('hotkey-overlay').hidden = false;
+    this._open = true;
+  },
+
+  close() {
+    document.getElementById('hotkey-overlay').hidden = true;
+    this._open = false;
+  },
+
+  toggle() {
+    this._open ? this.close() : this.open();
+  },
+};
+
+// ── Global keyboard handler ────────────────────────────────────
+function initGlobalHotkeys() {
+  document.addEventListener('keydown', e => {
+    const inInput = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+
+    // Escape — close topmost open panel
+    if (e.key === 'Escape') {
+      if (HotkeyOverlay._open)          { HotkeyOverlay.close(); return; }
+      if (!document.getElementById('tour-overlay')?.hidden) { Onboarding._endTour(); return; }
+      if (!document.getElementById('onboard-overlay')?.hidden) { return; }
+      // wizard + nav handled by their own listeners
+      return;
+    }
+
+    // ? — hotkey overlay (when not in input)
+    if (e.key === '?' && !inInput) {
+      e.preventDefault();
+      HotkeyOverlay.toggle();
+      return;
+    }
+
+    // Ctrl shortcuts
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.builder?.launch?.();
+        return;
+      }
+      if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        document.getElementById('op-select')?.focus();
+        return;
+      }
+      if (e.key === 'z' || e.key === 'Z') {
+        if (!inInput) {
+          e.preventDefault();
+          const ops = window.builder?.operators;
+          if (ops && ops.length > 0) window.builder.removeOperator(ops.length - 1);
+        }
+        return;
+      }
+      return;
+    }
+
+    // Single-key shortcuts — only when not typing
+    if (inInput) return;
+
+    if (e.key === 'w' || e.key === 'W') { DorkWizard.open(); return; }
+    if (e.key === 't' || e.key === 'T') { switchTab('templates'); return; }
+    if (e.key === 'h' || e.key === 'H') { switchTab('history'); return; }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -3008,10 +3372,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initExport();
 
   window.builder = new Builder();
+  console.log('[DorkForge] preview element:', document.getElementById('query-preview'));
   TemplateManager.init();
   renderHistory();
   initMobile();
   DorkWizard.init();
+  initOperatorTooltip();
+  initBuilderEmptyState();
+  Onboarding.init();
+  HotkeyOverlay.init();
+  initGlobalHotkeys();
 
   // Restore query from share URL hash  (#q=site:example.com+...)
   if (location.hash.startsWith('#q=')) {

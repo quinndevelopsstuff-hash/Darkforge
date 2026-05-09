@@ -72,9 +72,15 @@
           <!-- JS: operator rows injected here by addOperator() -->
           <div id="operator-list" class="operator-list">
             <!-- JS: rendered .operator-row elements go here -->
-            <p id="operator-empty-state" class="empty-state">
-              No operators added yet. Use the row below to begin.
-            </p>
+            <div id="operator-empty-state" class="builder-empty-upgrade">
+              <div class="beu-headline">👋 NEW HERE?</div>
+              <div class="beu-text">Try the Wizard above — it builds your search automatically.</div>
+              <div class="beu-chips">
+                <button class="beu-chip" data-intent="person">🔍 Find a person</button>
+                <button class="beu-chip" data-intent="documents">📄 Find exposed files</button>
+                <button class="beu-chip" data-intent="login">🔐 Find login pages</button>
+              </div>
+            </div>
           </div>
 
           <!-- Add Operator Row — JS: reads #op-select, #op-value on #btn-add-op click -->
@@ -126,8 +132,17 @@
               spellcheck="false"
             />
 
+            <!-- Operator help button — JS: initOperatorTooltip() -->
+            <button type="button" id="op-help-btn" class="op-help-btn" aria-label="Operator help" title="What does this operator do?">?</button>
+
             <!-- JS: id="btn-add-op" click → addOperator() -->
             <button id="btn-add-op" class="btn btn-add">+ ADD</button>
+          </div>
+          <!-- Operator tooltip panel — shown/hidden by initOperatorTooltip() -->
+          <div id="op-tooltip-panel" class="op-tooltip-panel" hidden>
+            <div class="op-tip-name" id="op-tip-name"></div>
+            <div class="op-tip-desc" id="op-tip-desc"></div>
+            <div class="op-tip-example" id="op-tip-example"></div>
           </div>
         </div><!-- /builder-left -->
 
@@ -141,7 +156,7 @@
           </div>
 
           <!-- JS: id="query-preview" — updated by _updatePreview() -->
-          <div id="query-preview" class="query-preview" aria-live="polite" aria-label="Constructed dork query">
+          <div id="query-preview" data-testid="preview-box" class="query-preview" aria-live="polite" aria-label="Constructed dork query">
             <span class="preview-placeholder">YOUR DORK WILL APPEAR HERE</span>
           </div>
 
