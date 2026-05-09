@@ -601,6 +601,36 @@ const ENGINES = {
 const PEOPLE_ENGINES = new Set(['truepeoplesearch', 'whitepages', 'fastpeoplesearch']);
 
 // ══════════════════════════════════════════════════════════════
+// SMART FORM FIELDS CONFIG
+// All possible input fields across people & company templates
+// ══════════════════════════════════════════════════════════════
+const FORM_FIELDS = {
+  // Person fields
+  firstname:   { label: 'First Name',     placeholder: 'John',           type: 'text',   required: false },
+  lastname:    { label: 'Last Name',      placeholder: 'Doe',            type: 'text',   required: false },
+  fullname:    { label: 'Full Name',      placeholder: 'John Doe',       type: 'text',   required: false },
+  city:        { label: 'City',           placeholder: 'Chicago',        type: 'text',   required: false },
+  state:       { label: 'State',          placeholder: 'Illinois',       type: 'text',   required: false },
+  zip:         { label: 'ZIP Code',       placeholder: '60601',          type: 'text',   required: false },
+  phone:       { label: 'Phone Number',   placeholder: '5551234567',     type: 'tel',    required: false },
+  email:       { label: 'Email Address',  placeholder: 'john@email.com', type: 'email',  required: false },
+  username:    { label: 'Username',       placeholder: 'jdoe92',         type: 'text',   required: false },
+  age:         { label: 'Age',            placeholder: '34',             type: 'number', required: false },
+  employer:    { label: 'Employer',       placeholder: 'Acme Corp',      type: 'text',   required: false },
+  address:     { label: 'Street Address', placeholder: '123 Main St',    type: 'text',   required: false },
+  // Company fields
+  companyname: { label: 'Company Name',   placeholder: 'Acme Corp',      type: 'text',   required: true  },
+  domain:      { label: 'Domain',         placeholder: 'acmecorp.com',   type: 'text',   required: false },
+  industry:    { label: 'Industry',       placeholder: 'Technology',     type: 'text',   required: false },
+  location:    { label: 'City / Region',  placeholder: 'San Francisco',  type: 'text',   required: false },
+  employee:    { label: 'Employee Name',  placeholder: 'Jane Smith',     type: 'text',   required: false },
+  jobtitle:    { label: 'Job Title',      placeholder: 'Engineer',       type: 'text',   required: false },
+};
+
+// Categories that get smart expandable forms instead of direct Builder load
+const SMART_FORM_CATEGORIES = new Set(['person', 'company', 'people']);
+
+// ══════════════════════════════════════════════════════════════
 // HISTORY STORE — localStorage-backed, max 200 entries
 // ══════════════════════════════════════════════════════════════
 const HistoryStore = {
@@ -3518,6 +3548,185 @@ const TEMPLATES = [
 ];
 
 // ══════════════════════════════════════════════════════════════
+// TEMPLATE FIELDS MAP
+// Maps template id → fields[] for the smart expandable form.
+// Only templates listed here get the FILL & LOAD ▼ button.
+// ══════════════════════════════════════════════════════════════
+const TEMPLATE_FIELDS_MAP = {
+  // ── Person OSINT — basic ─────────────────────────────────────
+  'person-name-social':    ['firstname','lastname'],
+  'person-email-pattern':  ['firstname','lastname','email'],
+  'person-phone':          ['phone'],
+  'person-address':        ['firstname','lastname','city','state'],
+  'person-social-sweep':   ['username'],
+  'person-voter':          ['firstname','lastname','state'],
+  'person-court':          ['firstname','lastname','state'],
+  'person-property':       ['firstname','lastname','city','state'],
+  // ── Name + Location ──────────────────────────────────────────
+  'pn-name-basic':         ['firstname','lastname','city','state'],
+  'pn-name-no-social':     ['firstname','lastname','city','state'],
+  'pn-name-pdf':           ['firstname','lastname','city'],
+  'pn-name-spreadsheet':   ['firstname','lastname'],
+  'pn-name-employer':      ['firstname','lastname','employer','city'],
+  'pn-name-age':           ['firstname','lastname','age','city','state'],
+  // ── Phone ────────────────────────────────────────────────────
+  'pn-phone-generic':      ['phone'],
+  'pn-phone-variants':     ['phone'],
+  'pn-phone-name':         ['phone','firstname','lastname'],
+  'pn-phone-docs':         ['phone'],
+  'pn-phone-paste':        ['phone'],
+  // ── Email ────────────────────────────────────────────────────
+  'pn-email-raw':          ['email'],
+  'pn-email-name':         ['email','firstname','lastname'],
+  'pn-email-domain':       ['domain','firstname','lastname'],
+  'pn-email-paste':        ['email'],
+  'pn-email-docs':         ['email'],
+  'pn-username-dev':       ['username'],
+  // ── Address ──────────────────────────────────────────────────
+  'pn-address-generic':    ['address','city','state'],
+  'pn-address-records':    ['address','city'],
+  'pn-address-name':       ['firstname','lastname','address','city'],
+  'pn-address-business':   ['employer','city','state'],
+  'pn-address-neighbors':  ['address','city','state'],
+  // ── Social ───────────────────────────────────────────────────
+  'pn-social-username-major':  ['username'],
+  'pn-social-username-dev':    ['username'],
+  'pn-social-username-forums': ['username'],
+  'pn-social-linkedin':        ['firstname','lastname'],
+  'pn-social-facebook':        ['firstname','lastname'],
+  'pn-social-twitter':         ['firstname','lastname'],
+  'pn-social-cached':          ['username'],
+  'pn-social-niche':           ['firstname','lastname','city'],
+  // ── Associates ───────────────────────────────────────────────
+  'pn-assoc-family':       ['firstname','lastname','city','state'],
+  'pn-assoc-obituary':     ['firstname','lastname','city'],
+  'pn-assoc-wedding':      ['firstname','lastname','city'],
+  'pn-assoc-forum':        ['firstname','lastname','city'],
+  // ── Employment ───────────────────────────────────────────────
+  'pn-employ-current':     ['firstname','lastname','employer'],
+  'pn-employ-linkedin':    ['firstname','lastname'],
+  'pn-employ-press':       ['firstname','lastname','employer'],
+  'pn-employ-filings':     ['firstname','lastname'],
+  'pn-employ-license':     ['firstname','lastname','state'],
+  // ── Criminal ─────────────────────────────────────────────────
+  'pn-criminal-court':     ['firstname','lastname','state'],
+  'pn-criminal-pacer':     ['firstname','lastname'],
+  'pn-criminal-offender':  ['firstname','lastname','state'],
+  'pn-criminal-arrest':    ['firstname','lastname','city','state'],
+  'pn-criminal-bankruptcy':['firstname','lastname','state'],
+  // ── Company ──────────────────────────────────────────────────
+  'company-employees':     ['companyname'],
+  'company-jobs':          ['companyname','jobtitle'],
+  'company-subdomains':    ['domain'],
+  'company-vpn':           ['domain'],
+  'company-ma-docs':       ['companyname'],
+  'company-org-chart':     ['companyname'],
+  'company-tech-stack':    ['companyname','jobtitle'],
+  // ── People Search Engines ────────────────────────────────────
+  'people-tps-name':           ['firstname','lastname','city','state'],
+  'people-tps-phone':          ['phone'],
+  'people-tps-address':        ['address','city','state'],
+  'people-whitepages':         ['firstname','lastname','city','state'],
+  'people-fastpeoplesearch':   ['firstname','lastname','city','state'],
+  'people-multi':              ['firstname','lastname','city','state'],
+};
+
+// ══════════════════════════════════════════════════════════════
+// TEMPLATE OPERATOR OVERRIDES
+// Replaces static placeholder values with [TOKENS] in company
+// templates and person templates missing token-based operators.
+// ══════════════════════════════════════════════════════════════
+const TEMPLATE_OP_UPDATES = {
+  // Person basic — add name tokens where operators were generic
+  'person-name-social': [
+    {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    {type:'site',value:'linkedin.com'},{type:'OR',value:''},
+    {type:'site',value:'facebook.com'},
+  ],
+  'person-email-pattern': [
+    {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    {type:'exact',value:'[EMAIL]'},
+  ],
+  'person-voter': [
+    {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    {type:'exact',value:'[STATE]'},
+    {type:'filetype',value:'pdf'},{type:'OR',value:''},
+    {type:'filetype',value:'csv'},
+  ],
+  'person-court': [
+    {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    {type:'exact',value:'[STATE]'},
+    {type:'site',value:'courtlistener.com'},{type:'OR',value:''},
+    {type:'site',value:'pacer.gov'},
+  ],
+  'person-property': [
+    {type:'exact',value:'[FIRSTNAME] [LASTNAME]'},
+    {type:'site',value:'zillow.com'},{type:'OR',value:''},
+    {type:'exact',value:'property records'},{type:'exact',value:'assessor'},
+  ],
+  'person-social-sweep': [
+    {type:'exact',value:'[USERNAME]'},
+    {type:'site',value:'twitter.com'},{type:'OR',value:''},
+    {type:'site',value:'instagram.com'},{type:'OR',value:''},
+    {type:'site',value:'reddit.com'},
+  ],
+  // pn-phone-variants: replace hardcoded numbers with [PHONE]
+  'pn-phone-variants': [
+    {type:'intext',value:'[PHONE]'},
+  ],
+  // pn-social-cached: use [USERNAME] token
+  'pn-social-cached': [
+    {type:'cache',value:'twitter.com/[USERNAME]'},
+    {type:'OR',value:''},
+    {type:'cache',value:'instagram.com/[USERNAME]'},
+  ],
+  // pn-address-neighbors: use [ADDRESS] for street exclusion
+  'pn-address-neighbors': [
+    {type:'exact',value:'[ADDRESS]'},
+    {type:'exact',value:'[CITY]'},
+    {type:'exact',value:'[STATE]'},
+  ],
+  // Company templates — replace static values with tokens
+  'company-employees': [
+    {type:'exact',value:'[COMPANYNAME]'},
+    {type:'site',value:'linkedin.com/in'},
+  ],
+  'company-jobs': [
+    {type:'exact',value:'[COMPANYNAME]'},
+    {type:'exact',value:'[JOBTITLE]'},
+    {type:'site',value:'indeed.com'},{type:'OR',value:''},
+    {type:'site',value:'lever.co'},
+  ],
+  'company-subdomains': [
+    {type:'site',value:'[DOMAIN]'},
+    {type:'inurl_exclude',value:'www'},
+  ],
+  'company-vpn': [
+    {type:'site',value:'[DOMAIN]'},
+    {type:'inurl',value:'vpn'},{type:'OR',value:''},
+    {type:'inurl',value:'remote'},
+  ],
+  'company-ma-docs': [
+    {type:'exact',value:'[COMPANYNAME]'},
+    {type:'filetype',value:'pdf'},
+    {type:'exact',value:'acquisition'},{type:'OR',value:''},
+    {type:'exact',value:'merger'},
+  ],
+  'company-org-chart': [
+    {type:'exact',value:'[COMPANYNAME]'},
+    {type:'filetype',value:'pdf'},
+    {type:'exact',value:'org chart'},{type:'OR',value:''},
+    {type:'exact',value:'organization chart'},
+  ],
+  'company-tech-stack': [
+    {type:'exact',value:'[COMPANYNAME]'},
+    {type:'exact',value:'[JOBTITLE]'},
+    {type:'site',value:'greenhouse.io'},{type:'OR',value:''},
+    {type:'site',value:'workday.com'},
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
 // TEMPLATE MANAGER
 // ══════════════════════════════════════════════════════════════
 const PERSON_SUBCATEGORIES = [
@@ -3535,12 +3744,27 @@ const TemplateManager = {
   activeCategory: 'all',
   activeSubcategory: 'all',
   searchTerm: '',
+  _openFormCard: null,
 
   init() {
+    // Apply field maps and operator overrides to template objects once
+    for (const [id, fields] of Object.entries(TEMPLATE_FIELDS_MAP)) {
+      const t = TEMPLATES.find(t => t.id === id);
+      if (t) t.fields = fields;
+    }
+    for (const [id, ops] of Object.entries(TEMPLATE_OP_UPDATES)) {
+      const t = TEMPLATES.find(t => t.id === id);
+      if (t) t.operators = ops;
+    }
     this._injectSearch();
     this._buildSidebar();
     this._renderGrid();
     this._updateTabCount();
+  },
+
+  // Returns true if this template gets the smart expandable form
+  _isSmartTemplate(t) {
+    return SMART_FORM_CATEGORIES.has(t.category) && Array.isArray(t.fields) && t.fields.length > 0;
   },
 
   // ── Inject search box above the category list ─────────────────
@@ -3649,6 +3873,21 @@ const TemplateManager = {
       });
     });
 
+    // Smart form: FILL & LOAD ▼ button
+    grid.querySelectorAll('.btn-fill-load').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tmpl = TEMPLATES.find(t => t.id === btn.dataset.tid);
+        if (!tmpl) return;
+        const cardEl = btn.closest('.template-card');
+        // If this card's form is already open, collapse it
+        if (cardEl === this._openFormCard) {
+          this._closeForm();
+        } else {
+          this._openForm(tmpl, cardEl);
+        }
+      });
+    });
+
     grid.querySelectorAll('.card-explain-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const panel = btn.closest('.template-card').querySelector('.card-explain');
@@ -3657,6 +3896,153 @@ const TemplateManager = {
         btn.textContent = panel.hidden ? '?' : '×';
       });
     });
+  },
+
+  // ── Open the inline smart form on a template card ─────────────
+  _openForm(t, cardEl) {
+    this._closeForm();
+
+    const grid = document.getElementById('template-grid');
+    cardEl.classList.add('form-card-open');
+    if (grid) grid.classList.add('has-open-form');
+
+    // Build fields HTML
+    const fieldsHtml = (t.fields || []).map(fieldKey => {
+      const def = FORM_FIELDS[fieldKey];
+      if (!def) return '';
+      const star = def.required ? '<span class="form-req-star">*</span>' : '';
+      const phoneNote = fieldKey === 'phone'
+        ? `<div class="form-phone-note">We'll search all common number formats automatically</div>`
+        : '';
+      return `<div class="form-field" data-field="${fieldKey}">
+        <label class="form-field-label">${_esc(def.label.toUpperCase())}${star}</label>
+        <input class="form-field-input"
+          data-field="${fieldKey}"
+          type="${def.type}"
+          placeholder="${_esc(def.placeholder)}"
+          autocomplete="off" spellcheck="false"
+          ${def.required ? 'data-required="true"' : ''}
+        />
+        ${phoneNote}
+        <div class="form-field-error" hidden>This field is required</div>
+      </div>`;
+    }).join('');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'template-form-wrap';
+    wrap.dataset.tid = t.id;
+    wrap.innerHTML = `
+      <div class="template-form">
+        <div class="form-header-row">
+          <div class="form-header-info">
+            <div class="form-title">${_esc(t.name)}</div>
+            <div class="form-hint">Fill in what you know — empty fields are skipped</div>
+          </div>
+          <button class="form-close-btn" aria-label="Close form">×</button>
+        </div>
+        <div class="form-fields-grid">${fieldsHtml}</div>
+        <div class="form-at-least-one">Fill in at least one field</div>
+        <div class="form-validation-msg" hidden>✗ PLEASE FILL IN REQUIRED FIELDS</div>
+        <div class="form-actions">
+          <button class="btn form-cancel-btn">× CANCEL</button>
+          <button class="btn btn-build-query" disabled data-tid="${_esc(t.id)}">BUILD QUERY →</button>
+        </div>
+      </div>`;
+
+    cardEl.appendChild(wrap);
+
+    // Update load button label
+    const fillBtn = cardEl.querySelector('.btn-fill-load');
+    if (fillBtn) { fillBtn.textContent = '▲ COLLAPSE'; fillBtn.classList.add('btn-fill-load-open'); }
+
+    // Animate open (next frame so transition fires)
+    requestAnimationFrame(() => {
+      wrap.style.maxHeight = (wrap.scrollHeight + 8) + 'px';
+      wrap.classList.add('form-wrap-open');
+    });
+
+    // Wire inputs + build button
+    const inputs      = wrap.querySelectorAll('.form-field-input');
+    const buildBtn    = wrap.querySelector('.btn-build-query');
+    const atLeastOne  = wrap.querySelector('.form-at-least-one');
+    const validMsg    = wrap.querySelector('.form-validation-msg');
+
+    const syncBuildEnabled = () => {
+      const any = [...inputs].some(inp => inp.value.trim());
+      buildBtn.disabled = !any;
+      if (atLeastOne) atLeastOne.style.display = any ? 'none' : '';
+    };
+
+    inputs.forEach(inp => {
+      inp.addEventListener('input', () => {
+        inp.classList.remove('form-input-error');
+        inp.closest('.form-field')?.querySelector('.form-field-error')?.setAttribute('hidden', '');
+        if (validMsg) validMsg.hidden = true;
+        syncBuildEnabled();
+        // Re-measure height as errors appear/disappear
+        wrap.style.maxHeight = (wrap.scrollHeight + 8) + 'px';
+      });
+    });
+
+    syncBuildEnabled();
+
+    wrap.querySelector('.form-close-btn').addEventListener('click', () => this._closeForm());
+    wrap.querySelector('.form-cancel-btn').addEventListener('click', () => this._closeForm());
+
+    buildBtn.addEventListener('click', () => {
+      const tmpl = TEMPLATES.find(t2 => t2.id === buildBtn.dataset.tid);
+      if (!tmpl) return;
+
+      // Validate required fields
+      let hasError = false;
+      inputs.forEach(inp => {
+        if (inp.dataset.required && !inp.value.trim()) {
+          inp.classList.add('form-input-error');
+          inp.closest('.form-field')?.querySelector('.form-field-error')?.removeAttribute('hidden');
+          hasError = true;
+        }
+      });
+      if (hasError) {
+        if (validMsg) validMsg.hidden = false;
+        wrap.style.maxHeight = (wrap.scrollHeight + 8) + 'px';
+        wrap.querySelectorAll('.form-input-error')[0]?.focus();
+        return;
+      }
+
+      // Collect values
+      const formValues = {};
+      inputs.forEach(inp => { formValues[inp.dataset.field] = inp.value.trim(); });
+
+      this._closeForm();
+      this._loadTemplate(tmpl, formValues);
+      _showQueryBuiltBanner();
+    });
+
+    // Focus first input
+    inputs[0]?.focus();
+    this._openFormCard = cardEl;
+  },
+
+  // ── Collapse any open smart form ──────────────────────────────
+  _closeForm() {
+    if (!this._openFormCard) return;
+    const cardEl = this._openFormCard;
+    const wrap   = cardEl.querySelector('.template-form-wrap');
+    const fillBtn = cardEl.querySelector('.btn-fill-load');
+
+    if (wrap) {
+      wrap.style.maxHeight = '0px';
+      wrap.classList.remove('form-wrap-open');
+      setTimeout(() => { if (wrap.parentNode) wrap.remove(); }, 280);
+    }
+    if (fillBtn) {
+      fillBtn.textContent = 'FILL & LOAD ▼';
+      fillBtn.classList.remove('btn-fill-load-open');
+    }
+    cardEl.classList.remove('form-card-open');
+    const grid = document.getElementById('template-grid');
+    if (grid) grid.classList.remove('has-open-form');
+    this._openFormCard = null;
   },
 
   // ── Build HTML for a single template card ─────────────────────
@@ -3719,25 +4105,66 @@ const TemplateManager = {
       </div>
       <div class="card-footer">
         <div class="engine-badges">${badges}</div>
-        <button class="btn card-btn btn-load-template" data-tid="${_esc(t.id)}">LOAD</button>
+        ${this._isSmartTemplate(t)
+          ? `<button class="btn card-btn btn-fill-load" data-tid="${_esc(t.id)}">FILL &amp; LOAD &#9660;</button>`
+          : `<button class="btn card-btn btn-load-template" data-tid="${_esc(t.id)}">LOAD</button>`
+        }
       </div>
     </article>`;
   },
 
   // ── Load a template into the Builder and switch tabs ──────────
-  _loadTemplate(t) {
+  // formValues: optional object from smart form; if omitted, loads operators as-is
+  _loadTemplate(t, formValues) {
     window.builder.reset();
-    t.operators.forEach(op => window.builder.addOperator(op.type, op.value));
 
-    // Apply engine selection from template
-    document.querySelectorAll('.engine-checkbox').forEach(cb => {
-      cb.checked = t.engines.includes(cb.dataset.engine);
-    });
-    const shodanCb = document.querySelector('.engine-checkbox[data-engine="shodan"]');
+    const allPeopleEng = t.engines.length > 0 && t.engines.every(e => PEOPLE_ENGINES.has(e));
+
+    if (formValues && allPeopleEng) {
+      // TPS / people-search mode: set engines then populate TPS fields
+      document.querySelectorAll('.engine-checkbox').forEach(cb => {
+        cb.checked = t.engines.includes(cb.dataset.engine);
+      });
+      window.builder._checkTpsMode();
+
+      const f = window.builder.tpsFields;
+      f.first   = formValues.firstname || '';
+      f.last    = formValues.lastname  || '';
+      f.city    = formValues.city      || '';
+      f.state   = formValues.state     || '';
+      f.zip     = formValues.zip       || '';
+      f.phone   = formValues.phone     || '';
+      f.address = formValues.address   || '';
+
+      // Sync DOM TPS inputs
+      window.builder.elTpsForm.querySelectorAll('.tps-input').forEach(inp => {
+        inp.value = f[inp.dataset.tps] || '';
+      });
+
+    } else if (formValues) {
+      // Standard form mode: build operators from form values
+      const ops = buildFromForm(t, formValues);
+      ops.forEach(op => window.builder.addOperator(op.type, op.value));
+
+      document.querySelectorAll('.engine-checkbox').forEach(cb => {
+        cb.checked = t.engines.includes(cb.dataset.engine);
+      });
+      window.builder._checkTpsMode();
+
+    } else {
+      // Legacy/direct LOAD (non-smart templates)
+      t.operators.forEach(op => window.builder.addOperator(op.type, op.value));
+
+      document.querySelectorAll('.engine-checkbox').forEach(cb => {
+        cb.checked = t.engines.includes(cb.dataset.engine);
+      });
+      window.builder._checkTpsMode();
+    }
+
+    const shodanCb   = document.querySelector('.engine-checkbox[data-engine="shodan"]');
     const shodanNote = document.getElementById('shodan-disclaimer');
     if (shodanCb && shodanNote) shodanNote.hidden = !shodanCb.checked;
 
-    window.builder._checkTpsMode();
     window.builder._updatePreview();
     switchTab('builder');
     window.builder._showLaunchLog('ok', `Template loaded: ${t.name}`);
@@ -3771,6 +4198,120 @@ const TemplateManager = {
     if (item) item.textContent = `TEMPLATES (${TEMPLATES.length})`;
   },
 };
+
+// ══════════════════════════════════════════════════════════════
+// BUILD FROM FORM — substitutes form values into template operators
+// ══════════════════════════════════════════════════════════════
+function buildFromForm(template, formValues) {
+  const fn  = formValues.firstname   || '';
+  const ln  = formValues.lastname    || '';
+  const city    = formValues.city      || '';
+  const state   = formValues.state     || '';
+  const zip     = formValues.zip       || '';
+  const phone   = formValues.phone     || '';
+  const email   = formValues.email     || '';
+  const username = formValues.username || '';
+  const age     = formValues.age       || '';
+  const employer = formValues.employer || '';
+  const address = formValues.address   || '';
+  const companyname = formValues.companyname || '';
+  const domain  = formValues.domain    || '';
+  const industry = formValues.industry || '';
+  const location = formValues.location || city;
+  const employee = formValues.employee || '';
+  const jobtitle = formValues.jobtitle || '';
+
+  // Phone: expand to 3 common US formats
+  let phoneExpanded = phone;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length >= 10) {
+    const d  = digits.slice(-10);
+    const p1 = d.slice(0, 3), p2 = d.slice(3, 6), p3 = d.slice(6);
+    phoneExpanded = `"${d}" OR "(${p1}) ${p2}-${p3}" OR "${p1}-${p2}-${p3}"`;
+  }
+
+  const operators = [];
+
+  for (const op of template.operators) {
+    let value = op.value;
+
+    // Skip OR/AND — keep as structural connectors
+    if (op.type === 'OR' || op.type === 'AND') {
+      operators.push(op);
+      continue;
+    }
+
+    // Phone: expand to 3 formats when filled, skip when empty
+    if (value.includes('[PHONE]')) {
+      if (!phone) continue;
+      value = value.replace(/\[PHONE\]/g, phoneExpanded);
+    }
+
+    // Combined first+last name pattern
+    if (value.includes('[FIRSTNAME]') && value.includes('[LASTNAME]')) {
+      const combined = [fn, ln].filter(Boolean).join(' ');
+      if (!combined) continue;
+      value = value.replace('[FIRSTNAME] [LASTNAME]', combined);
+    }
+
+    // Individual tokens
+    value = value.replace(/\[FIRSTNAME\]/g,   fn);
+    value = value.replace(/\[LASTNAME\]/g,    ln);
+    value = value.replace(/\[FULLNAME\]/g,    formValues.fullname || [fn, ln].filter(Boolean).join(' '));
+    value = value.replace(/\[EMAIL\]/g,       email);
+    value = value.replace(/\[USERNAME\]/g,    username);
+    value = value.replace(/\[AGE\]/g,         age);
+    value = value.replace(/\[EMPLOYER\]/g,    employer);
+    value = value.replace(/\[ADDRESS\]/g,     address);
+    value = value.replace(/\[CITY\]/g,        city);
+    value = value.replace(/\[STATE\]/g,       state);
+    value = value.replace(/\[ZIP\]/g,         zip);
+    value = value.replace(/\[DOMAIN\]/g,      domain);
+    value = value.replace(/\[COMPANYNAME\]/g, companyname);
+    value = value.replace(/\[COMPANY\]/g,     companyname);
+    value = value.replace(/\[INDUSTRY\]/g,    industry);
+    value = value.replace(/\[LOCATION\]/g,    location);
+    value = value.replace(/\[EMPLOYEE\]/g,    employee);
+    value = value.replace(/\[JOBTITLE\]/g,    jobtitle);
+
+    // Skip operator if any [TOKEN] is still unfilled
+    if (/\[[A-Z][A-Z\s]*\]/.test(value)) continue;
+    // Skip if value is blank after substitution
+    if (!value.trim()) continue;
+
+    operators.push({ type: op.type, value });
+  }
+
+  // Prune dangling OR/AND connectors at start/end or adjacent pairs
+  const clean = [];
+  for (const op of operators) {
+    const isConn = op.type === 'OR' || op.type === 'AND';
+    if (isConn && (!clean.length || clean[clean.length - 1].type === 'OR' || clean[clean.length - 1].type === 'AND')) continue;
+    clean.push(op);
+  }
+  while (clean.length && (clean[clean.length - 1].type === 'OR' || clean[clean.length - 1].type === 'AND')) {
+    clean.pop();
+  }
+
+  return clean;
+}
+
+// ══════════════════════════════════════════════════════════════
+// QUERY BUILT FLASH BANNER
+// ══════════════════════════════════════════════════════════════
+function _showQueryBuiltBanner() {
+  let banner = document.getElementById('query-built-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'query-built-banner';
+    banner.className = 'query-built-banner';
+    document.body.appendChild(banner);
+  }
+  banner.textContent = '✓ QUERY BUILT — Review and launch';
+  banner.classList.add('banner-visible');
+  clearTimeout(banner._dismissTimer);
+  banner._dismissTimer = setTimeout(() => banner.classList.remove('banner-visible'), 3000);
+}
 
 // ══════════════════════════════════════════════════════════════
 // MOBILE CONFIRM — bottom sheet on touch, native confirm on desktop
