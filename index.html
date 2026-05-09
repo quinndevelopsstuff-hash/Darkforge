@@ -56,6 +56,14 @@
 
         <!-- LEFT COLUMN: Query Builder -->
         <div class="builder-left">
+
+          <!-- WIZARD BUTTON — prominent entry point for new users -->
+          <button id="btn-wizard" class="btn-wizard">
+            <span class="wz-label-full">&#x26A1; LAUNCH WIZARD &#x2014; Not sure where to start? Click here</span>
+            <span class="wz-label-short">&#x26A1; WIZARD &#x2014; Start here</span>
+          </button>
+          <hr class="wizard-divider" />
+
           <div class="section-header">
             <span class="section-title">QUERY BUILDER</span>
             <span class="section-line"></span>
@@ -132,9 +140,9 @@
             <span class="section-line"></span>
           </div>
 
-          <!-- JS: id="query-preview" — updated by renderPreview() -->
+          <!-- JS: id="query-preview" — updated by _updatePreview() -->
           <div id="query-preview" class="query-preview" aria-live="polite" aria-label="Constructed dork query">
-            <span class="preview-placeholder">site:example.com filetype:pdf</span>
+            <span class="preview-placeholder">YOUR DORK WILL APPEAR HERE</span>
           </div>
 
           <!-- JS: id="btn-copy-query" click → copyQuery() -->
@@ -636,6 +644,10 @@
     </section><!-- /panel-settings -->
 
   </main><!-- /main-content -->
+
+  <!-- Wizard overlay — DOM injected by DorkWizard.init() in app.js -->
+  <!-- Wizard flash banner -->
+  <div id="wizard-banner" hidden><span id="wizard-banner-text"></span></div>
 
   <script src="app.js"></script>
 </body>

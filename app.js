@@ -2541,6 +2541,465 @@ function initMobile() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// DORK WIZARD
+// ══════════════════════════════════════════════════════════════
+const DorkWizard = {
+  step: 1,
+  answers: { intent: null, chips: new Set(), fields: {} },
+
+  INTENTS: [
+    { id: 'person',    icon: '👤', label: 'A Person',                   desc: 'Find someone by name, phone, email or address' },
+    { id: 'company',   icon: '🏢', label: 'A Company or Organization',  desc: 'Research a business, find employees, or map infrastructure' },
+    { id: 'documents', icon: '📄', label: 'Documents & Files',          desc: 'Find PDFs, spreadsheets, or other files left exposed online' },
+    { id: 'login',     icon: '🔐', label: 'Login Pages & Admin Panels', desc: 'Find login portals, admin pages, or authentication systems' },
+    { id: 'devices',   icon: '📷', label: 'Cameras & Devices',          desc: 'Find exposed webcams, routers, or IoT devices' },
+    { id: 'code',      icon: '💻', label: 'Code & Credentials',         desc: 'Find API keys, passwords, or config files in public code' },
+    { id: 'recon',     icon: '🌐', label: 'General Website Recon',      desc: 'Explore a specific website or domain' },
+  ],
+
+  CHIPS: {
+    person:    [{id:'name',label:'Their name'},{id:'phone',label:'Phone number'},{id:'email',label:'Email address'},{id:'location',label:'Home city/state'},{id:'employer',label:'Where they work'},{id:'username',label:'Their username'},{id:'age',label:'Their age'}],
+    company:   [{id:'employees',label:'Employee names'},{id:'login',label:'Login portals'},{id:'documents',label:'Exposed documents'},{id:'subdomains',label:'Subdomains'},{id:'techstack',label:'Tech stack'},{id:'press',label:'Press mentions'}],
+    documents: [{id:'pdf',label:'PDFs'},{id:'spreadsheet',label:'Spreadsheets'},{id:'word',label:'Word docs'},{id:'config',label:'Config files'},{id:'database',label:'Database dumps'},{id:'any',label:'Any file type'}],
+    login:     [{id:'generic',label:'Generic login page'},{id:'admin',label:'Admin panel'},{id:'phpmyadmin',label:'phpMyAdmin'},{id:'vpn',label:'VPN portal'},{id:'camera',label:'Camera/router'},{id:'owa',label:'Email (OWA)'}],
+    devices:   [{id:'webcam',label:'Webcams'},{id:'ipcam',label:'IP cameras'},{id:'router',label:'Router admin'},{id:'printer',label:'Printers'},{id:'scada',label:'SCADA/ICS'}],
+    code:      [{id:'github',label:'GitHub'},{id:'websites',label:'Public websites'},{id:'paste',label:'Paste sites'},{id:'all',label:'All of the above'}],
+    recon:     [{id:'login',label:'Login pages'},{id:'files',label:'Exposed files'},{id:'subdomains',label:'Subdomains'},{id:'cache',label:'Cached pages'},{id:'admin',label:'Admin panels'},{id:'everything',label:'Everything'}],
+  },
+
+  // ── Setup ──────────────────────────────────────────────────────
+  init() {
+    this._createDOM();
+    document.getElementById('btn-wizard')?.addEventListener('click', () => this.open());
+  },
+
+  _createDOM() {
+    const overlay = document.createElement('div');
+    overlay.id = 'wizard-overlay';
+    overlay.innerHTML = `
+      <div id="wizard-panel">
+        <div class="wz-header-bar">
+          <div>
+            <div class="wz-title">DORK WIZARD</div>
+            <div class="wz-subtitle">Answer a few questions and we'll build your search for you.</div>
+          </div>
+          <button class="wz-close" id="wz-close" aria-label="Close wizard">&times;</button>
+        </div>
+        <div class="wz-progress" id="wz-progress"></div>
+        <div class="wz-body" id="wz-body"></div>
+        <div class="wz-footer" id="wz-footer"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('wz-close').addEventListener('click', () => this.close());
+    overlay.addEventListener('click', e => { if (e.target === overlay) this.close(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.classList.contains('wizard-open')) this.close();
+    });
+  },
+
+  // ── Open / close ───────────────────────────────────────────────
+  open() {
+    this.step = 1;
+    this.answers = { intent: null, chips: new Set(), fields: {} };
+    const overlay = document.getElementById('wizard-overlay');
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      overlay.classList.add('wizard-open');
+      this._render();
+    }));
+  },
+
+  close() {
+    const overlay = document.getElementById('wizard-overlay');
+    overlay.classList.remove('wizard-open');
+    setTimeout(() => { overlay.style.display = 'none'; }, 260);
+  },
+
+  // ── Render dispatcher ──────────────────────────────────────────
+  _render() {
+    this._renderProgress();
+    const body   = document.getElementById('wz-body');
+    const footer = document.getElementById('wz-footer');
+    body.innerHTML   = '';
+    footer.innerHTML = '';
+    if (this.step === 1) this._renderStep1(body, footer);
+    else if (this.step === 2) this._renderStep2(body, footer);
+    else if (this.step === 3) this._renderStep3(body, footer);
+    else if (this.step === 4) this._renderStep4(body, footer);
+  },
+
+  _renderProgress() {
+    const el   = document.getElementById('wz-progress');
+    const dots = [1, 2, 3, 4].map(n => {
+      if (n < this.step)  return `<span class="wz-dot wz-dot-done">●</span>`;
+      if (n === this.step) return `<span class="wz-dot wz-dot-active">●</span>`;
+      return `<span class="wz-dot wz-dot-empty">○</span>`;
+    }).join('');
+    el.innerHTML = `${dots}<span class="wz-step-label">Step ${this.step} of 4</span>`;
+  },
+
+  // ── Step 1: intent selection ───────────────────────────────────
+  _renderStep1(body) {
+    body.innerHTML = `
+      <div class="wz-question">What are you trying to find?</div>
+      <div class="wz-option-list">
+        ${this.INTENTS.map(i => `
+          <button class="wz-option-card${this.answers.intent === i.id ? ' wz-selected' : ''}" data-intent="${_esc(i.id)}">
+            <span class="wz-option-icon">${i.icon}</span>
+            <span class="wz-option-text">
+              <span class="wz-option-label">${_esc(i.label)}</span>
+              <span class="wz-option-desc">${_esc(i.desc)}</span>
+            </span>
+          </button>`).join('')}
+      </div>`;
+    body.querySelectorAll('.wz-option-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.answers.intent = btn.dataset.intent;
+        this.answers.chips  = new Set();
+        this.answers.fields = {};
+        this.step = 2;
+        this._render();
+      });
+    });
+  },
+
+  // ── Step 2: chip multi-select ──────────────────────────────────
+  _renderStep2(body, footer) {
+    const chips = this.CHIPS[this.answers.intent] || [];
+    const q = {
+      person:    'What do you know about them?',
+      company:   'What do you want to find?',
+      documents: 'What kind of files?',
+      login:     'What type of system?',
+      devices:   'What are you looking for?',
+      code:      'Where should we look?',
+      recon:     'What do you want to find on the site?',
+    }[this.answers.intent] || 'Select what applies:';
+
+    body.innerHTML = `
+      <div class="wz-back-row"><button class="wz-btn-back-sm" id="wz-back-2">← Back</button></div>
+      <div class="wz-question">${_esc(q)}</div>
+      <div class="wz-chips">
+        ${chips.map(c => `<button class="wz-chip${this.answers.chips.has(c.id) ? ' wz-chip-on' : ''}" data-chip="${_esc(c.id)}">${_esc(c.label)}</button>`).join('')}
+      </div>`;
+
+    body.querySelector('#wz-back-2').addEventListener('click', () => { this.step = 1; this._render(); });
+
+    let nextBtn;
+    body.querySelectorAll('.wz-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.chip;
+        if (this.answers.chips.has(id)) {
+          this.answers.chips.delete(id);
+          btn.classList.remove('wz-chip-on');
+        } else {
+          this.answers.chips.add(id);
+          btn.classList.add('wz-chip-on');
+        }
+        if (nextBtn) nextBtn.disabled = this.answers.chips.size === 0;
+      });
+    });
+
+    nextBtn = document.createElement('button');
+    nextBtn.className  = 'wz-btn-next';
+    nextBtn.textContent = 'Next →';
+    nextBtn.disabled   = this.answers.chips.size === 0;
+    nextBtn.addEventListener('click', () => {
+      if (this.answers.chips.size === 0) return;
+      this.step = 3;
+      this._render();
+    });
+    footer.appendChild(nextBtn);
+  },
+
+  // ── Step 3: detail fields ──────────────────────────────────────
+  _renderStep3(body, footer) {
+    const defs = this._fieldDefs();
+
+    body.innerHTML = `
+      <div class="wz-back-row"><button class="wz-btn-back-sm" id="wz-back-3">← Back</button></div>
+      <div class="wz-question">Fill in the details:</div>
+      <div class="wz-fields">
+        ${defs.map(f => `
+          <div class="wz-field-group">
+            <label class="wz-label" for="wzf-${_esc(f.id)}">${_esc(f.label)}${f.required ? ' <span class="wz-required">*</span>' : ''}</label>
+            <input class="wz-input" id="wzf-${_esc(f.id)}" data-field="${_esc(f.id)}"
+              type="text" placeholder="${_esc(f.placeholder)}"
+              autocomplete="off" spellcheck="false"
+              value="${_esc(this.answers.fields[f.id] || '')}" />
+          </div>`).join('')}
+      </div>`;
+
+    body.querySelector('#wz-back-3').addEventListener('click', () => { this.step = 2; this._render(); });
+
+    let nextBtn;
+    body.querySelectorAll('.wz-input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        this.answers.fields[inp.dataset.field] = inp.value.trim();
+        if (nextBtn) nextBtn.disabled = !this._requiredFilled(defs);
+      });
+    });
+
+    nextBtn = document.createElement('button');
+    nextBtn.className   = 'wz-btn-next';
+    nextBtn.textContent = 'Next →';
+    nextBtn.disabled    = !this._requiredFilled(defs);
+    nextBtn.addEventListener('click', () => {
+      if (!this._requiredFilled(defs)) return;
+      this.step = 4;
+      this._render();
+    });
+    footer.appendChild(nextBtn);
+  },
+
+  // ── Step 4: review + build ─────────────────────────────────────
+  _renderStep4(body, footer) {
+    const result = this.generateFromWizard();
+    const previewStr = result.operators.map(op => {
+      const def = OPERATORS[op.type];
+      return def ? def.syntax.replace('{value}', op.value) : op.value;
+    }).join(' ').trim();
+
+    body.innerHTML = `
+      <div class="wz-back-row"><button class="wz-btn-back-sm" id="wz-back-4">← Back</button></div>
+      <div class="wz-question">Review &amp; Build</div>
+      <p class="wz-summary">${_esc(result.summary)}</p>
+      <div class="wz-preview-box">${_esc(previewStr) || '<em>(no query generated)</em>'}</div>`;
+
+    body.querySelector('#wz-back-4').addEventListener('click', () => { this.step = 3; this._render(); });
+
+    const buildBtn = document.createElement('button');
+    buildBtn.className   = 'wz-btn-build';
+    buildBtn.textContent = 'BUILD & LOAD →';
+    buildBtn.addEventListener('click', () => {
+      this._applyToBuilder(result);
+      this.close();
+      setTimeout(() => this._showBanner('✓ WIZARD COMPLETE — Review your query and launch'), 310);
+    });
+    footer.appendChild(buildBtn);
+  },
+
+  // ── Field definitions by intent + chips ───────────────────────
+  _fieldDefs() {
+    const { intent, chips } = this.answers;
+    const f = [];
+    if (intent === 'person') {
+      if (chips.has('name')) {
+        f.push({id:'firstName', label:'First Name',   placeholder:'John',          required:true});
+        f.push({id:'lastName',  label:'Last Name',    placeholder:'Doe',           required:true});
+      }
+      if (chips.has('phone'))    f.push({id:'phone',    label:'Phone Number',          placeholder:'5551234567',       required:true});
+      if (chips.has('email'))    f.push({id:'email',    label:'Email Address',         placeholder:'john@gmail.com',   required:true});
+      if (chips.has('location')) {
+        f.push({id:'city',  label:'City',  placeholder:'Chicago',  required:true});
+        f.push({id:'state', label:'State', placeholder:'Illinois', required:true});
+      }
+      if (chips.has('employer')) f.push({id:'employer', label:'Employer / Company',   placeholder:'Acme Corp', required:true});
+      if (chips.has('username')) f.push({id:'username', label:'Username',              placeholder:'jdoe92',    required:true});
+      if (chips.has('age'))      f.push({id:'age',      label:'Age (optional)',        placeholder:'34',        required:false});
+    } else if (intent === 'company') {
+      f.push({id:'company', label:'Company / Organization Name', placeholder:'Acme Corp',    required:true});
+      f.push({id:'domain',  label:'Domain (optional)',           placeholder:'acmecorp.com', required:false});
+    } else if (intent === 'documents') {
+      f.push({id:'site', label:'Limit to a specific site (optional)', placeholder:'acmecorp.com', required:false});
+    } else if (intent === 'login') {
+      f.push({id:'domain', label:'Target domain (optional)', placeholder:'acmecorp.com', required:false});
+    } else if (intent === 'devices') {
+      f.push({id:'region', label:'Region / Country (optional)', placeholder:'US', required:false});
+    } else if (intent === 'code') {
+      f.push({id:'keyword', label:'What are you looking for? *', placeholder:'API key, password, secret…', required:true});
+      f.push({id:'org',     label:'GitHub user or org (optional)', placeholder:'acmecorp', required:false});
+    } else if (intent === 'recon') {
+      f.push({id:'domain', label:'Target Domain *', placeholder:'acmecorp.com', required:true});
+    }
+    return f;
+  },
+
+  _requiredFilled(defs) {
+    return defs.filter(d => d.required).every(d => (this.answers.fields[d.id] || '').trim().length > 0);
+  },
+
+  // ── Dork generation ────────────────────────────────────────────
+  generateFromWizard() {
+    const { intent, chips, fields } = this.answers;
+    const ops    = [];
+    const engSet = new Set(['google', 'duckduckgo', 'bing']);
+    const parts  = [];
+
+    if (intent === 'person') {
+      const name = (fields.firstName && fields.lastName) ? `${fields.firstName} ${fields.lastName}` : null;
+      if (name) { ops.push({type:'exact', value:name}); parts.push(`named ${name}`); }
+      if (chips.has('location') && fields.city) {
+        ops.push({type:'exact', value:fields.city});
+        if (fields.state) { ops.push({type:'exact', value:fields.state}); parts.push(`in ${fields.city}, ${fields.state}`); }
+        else parts.push(`in ${fields.city}`);
+      }
+      if (chips.has('employer') && fields.employer) {
+        ops.push({type:'exact', value:fields.employer}); parts.push(`at ${fields.employer}`);
+      }
+      if (chips.has('age') && fields.age) ops.push({type:'exact', value:fields.age});
+      if (chips.has('phone') && fields.phone) {
+        const raw = fields.phone.replace(/\D/g, '');
+        const f1  = raw.length === 10 ? `(${raw.slice(0,3)}) ${raw.slice(3,6)}-${raw.slice(6)}` : fields.phone;
+        const f2  = raw.length === 10 ? `${raw.slice(0,3)}-${raw.slice(3,6)}-${raw.slice(6)}` : fields.phone;
+        ops.push({type:'intext',value:f1}, {type:'OR',value:''}, {type:'intext',value:f2}, {type:'OR',value:''}, {type:'intext',value:raw||fields.phone});
+        parts.push(`phone ${fields.phone}`);
+      }
+      if (chips.has('email') && fields.email) {
+        ops.push({type:'exact', value:fields.email}); parts.push(`email ${fields.email}`);
+      }
+      if (chips.has('username') && fields.username) {
+        ops.push({type:'exact',value:fields.username}, {type:'site',value:'twitter.com'}, {type:'OR',value:''}, {type:'site',value:'instagram.com'}, {type:'OR',value:''}, {type:'site',value:'reddit.com'});
+        engSet.clear(); engSet.add('google'); parts.push(`username "${fields.username}"`);
+      }
+    }
+
+    if (intent === 'company') {
+      const co  = fields.company || '';
+      const dom = fields.domain  || '';
+      if (co) parts.push(co);
+      if (chips.has('employees')) {
+        ops.push({type:'site',value:'linkedin.com/in'});
+        if (co) ops.push({type:'intitle', value:co});
+        engSet.clear(); engSet.add('google'); engSet.add('bing');
+      }
+      if (chips.has('login')) {
+        if (dom) ops.push({type:'site',value:dom});
+        ops.push({type:'inurl',value:'login'}, {type:'OR',value:''}, {type:'inurl',value:'admin'}, {type:'OR',value:''}, {type:'inurl',value:'portal'});
+      }
+      if (chips.has('documents')) {
+        if (dom) ops.push({type:'site',value:dom});
+        ops.push({type:'filetype',value:'pdf'}, {type:'OR',value:''}, {type:'filetype',value:'xlsx'});
+        engSet.clear(); engSet.add('google'); engSet.add('bing');
+      }
+      if (chips.has('subdomains') && dom) {
+        ops.push({type:'site',value:dom}, {type:'site_exclude',value:`www.${dom}`});
+      }
+      if (chips.has('techstack') && dom) {
+        ops.push({type:'site',value:dom}, {type:'inurl',value:'jobs'}, {type:'OR',value:''}, {type:'inurl',value:'careers'});
+      }
+      if (chips.has('press')) {
+        ops.push({type:'site',value:'prnewswire.com'}, {type:'OR',value:''}, {type:'site',value:'businesswire.com'});
+        if (co) ops.push({type:'exact',value:co});
+        engSet.clear(); engSet.add('google');
+      }
+    }
+
+    if (intent === 'documents') {
+      const site = fields.site || '';
+      if (site) ops.push({type:'site', value:site});
+      const ftypes = [];
+      if (chips.has('pdf')        || chips.has('any')) ftypes.push('pdf');
+      if (chips.has('spreadsheet')|| chips.has('any')) ftypes.push('xlsx', 'csv');
+      if (chips.has('word')       || chips.has('any')) ftypes.push('doc', 'docx');
+      if (chips.has('config')     || chips.has('any')) ftypes.push('env', 'conf', 'yml');
+      if (chips.has('database')   || chips.has('any')) ftypes.push('sql');
+      ftypes.forEach((ft, i) => {
+        if (i > 0) ops.push({type:'OR', value:''});
+        ops.push({type:'filetype', value:ft});
+      });
+      if (chips.has('any') && !ftypes.length) ops.push({type:'intitle', value:'index of /'});
+      engSet.clear(); engSet.add('google'); engSet.add('bing');
+      parts.push(ftypes.length ? `${ftypes.join('/')} files` : 'open directories');
+    }
+
+    if (intent === 'login') {
+      const dom = fields.domain || '';
+      if (dom) ops.push({type:'site', value:dom});
+      if (chips.has('generic') || chips.has('admin')) {
+        ops.push({type:'intitle',value:'login'}, {type:'OR',value:''}, {type:'inurl',value:'login'});
+        if (chips.has('admin')) ops.push({type:'OR',value:''}, {type:'intitle',value:'admin'}, {type:'OR',value:''}, {type:'inurl',value:'admin'});
+      }
+      if (chips.has('phpmyadmin')) ops.push({type:'intitle',value:'phpMyAdmin'}, {type:'OR',value:''}, {type:'inurl',value:'phpmyadmin'});
+      if (chips.has('vpn'))     ops.push({type:'inurl',value:'vpn'}, {type:'OR',value:''}, {type:'inurl',value:'remote'});
+      if (chips.has('camera'))  ops.push({type:'intitle',value:'Network Camera'}, {type:'OR',value:''}, {type:'inurl',value:'viewer/live.shtml'});
+      if (chips.has('owa'))     ops.push({type:'inurl',value:'owa'}, {type:'OR',value:''}, {type:'intitle',value:'Outlook Web Access'});
+      engSet.clear(); engSet.add('google'); engSet.add('bing');
+      if (dom) parts.push(`on ${dom}`);
+    }
+
+    if (intent === 'devices') {
+      if (chips.has('webcam') || chips.has('ipcam')) ops.push({type:'intitle',value:'Network Camera'}, {type:'OR',value:''}, {type:'intitle',value:'Live NetSnap Cam-Server'}, {type:'OR',value:''}, {type:'inurl',value:'viewer/live.shtml'});
+      if (chips.has('router'))  ops.push({type:'intitle',value:'Router Configuration'}, {type:'OR',value:''}, {type:'inurl',value:'setup.cgi'});
+      if (chips.has('printer')) ops.push({type:'inurl',value:'hp/device/this.LCDispatcher'}, {type:'OR',value:''}, {type:'intitle',value:'Printer Status'});
+      if (chips.has('scada'))   ops.push({type:'intitle',value:'SCADA'}, {type:'OR',value:''}, {type:'intext',value:'SCADA system'});
+      engSet.clear(); engSet.add('google'); engSet.add('bing');
+    }
+
+    if (intent === 'code') {
+      const kw  = fields.keyword || '';
+      const org = fields.org     || '';
+      if (chips.has('github') || chips.has('all')) {
+        ops.push({type:'site', value:'github.com'});
+        if (org) ops.push({type:'inurl', value:org});
+        if (kw)  ops.push({type:'exact', value:kw});
+        engSet.clear(); engSet.add('google');
+      }
+      if (chips.has('paste') || chips.has('all')) {
+        if (ops.length) ops.push({type:'OR', value:''});
+        ops.push({type:'site', value:'pastebin.com'});
+        if (kw) ops.push({type:'exact', value:kw});
+        engSet.clear(); engSet.add('google');
+      }
+      if (chips.has('websites')) {
+        if (ops.length) ops.push({type:'OR', value:''});
+        ops.push({type:'filetype',value:'env'}, {type:'OR',value:''}, {type:'filetype',value:'conf'});
+        if (kw) ops.push({type:'exact', value:kw});
+      }
+      if (kw) parts.push(`"${kw}"`);
+    }
+
+    if (intent === 'recon') {
+      const dom = fields.domain || '';
+      if (dom) { ops.push({type:'site', value:dom}); parts.push(`on ${dom}`); }
+      if (chips.has('login') || chips.has('admin') || chips.has('everything')) {
+        ops.push({type:'inurl',value:'login'}, {type:'OR',value:''}, {type:'inurl',value:'admin'});
+      }
+      if (chips.has('files') || chips.has('everything')) {
+        ops.push({type:'filetype',value:'pdf'}, {type:'OR',value:''}, {type:'filetype',value:'xlsx'});
+        engSet.clear(); engSet.add('google'); engSet.add('bing');
+      }
+      if (chips.has('subdomains') && dom) ops.push({type:'site_exclude', value:`www.${dom}`});
+      if (chips.has('cache') && dom) ops.push({type:'cache', value:dom});
+    }
+
+    const intentLbl = {
+      person:'a person', company:'a company or organization',
+      documents:'documents and files', login:'login pages and admin panels',
+      devices:'cameras and devices', code:'code and credentials', recon:'a website',
+    };
+    const engNames = [...engSet].map(e => ENGINES[e]?.label || e).join(', ');
+    const summary  = `We'll search ${engNames} for ${intentLbl[intent] || intent}${parts.length ? ' — ' + parts.join(', ') : ''}.`;
+    return { operators: ops, engines: [...engSet], summary };
+  },
+
+  // ── Apply result to Builder ────────────────────────────────────
+  _applyToBuilder(result) {
+    window.builder.reset();
+    result.operators.forEach(op => window.builder.addOperator(op.type, op.value));
+    document.querySelectorAll('.engine-checkbox').forEach(cb => {
+      cb.checked = result.engines.includes(cb.dataset.engine);
+    });
+    const shodanCb   = document.querySelector('.engine-checkbox[data-engine="shodan"]');
+    const shodanNote = document.getElementById('shodan-disclaimer');
+    if (shodanCb && shodanNote) shodanNote.hidden = !shodanCb.checked;
+    window.builder._checkTpsMode();
+    window.builder._updatePreview();
+    switchTab('builder');
+  },
+
+  // ── Flash success banner ───────────────────────────────────────
+  _showBanner(msg) {
+    const banner = document.getElementById('wizard-banner');
+    const text   = document.getElementById('wizard-banner-text');
+    if (!banner || !text) return;
+    text.textContent = msg;
+    banner.hidden = false;
+    setTimeout(() => { banner.hidden = true; }, 3000);
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -2552,6 +3011,7 @@ document.addEventListener('DOMContentLoaded', () => {
   TemplateManager.init();
   renderHistory();
   initMobile();
+  DorkWizard.init();
 
   // Restore query from share URL hash  (#q=site:example.com+...)
   if (location.hash.startsWith('#q=')) {
