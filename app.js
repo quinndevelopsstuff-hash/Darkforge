@@ -1203,6 +1203,7 @@ function _loadQueryString(raw) {
 const TAB_LABELS = {
   builder:   'BUILDER',
   templates: 'TEMPLATES',
+  learn:     'LEARN',
   history:   'HISTORY',
   export:    'EXPORT',
   settings:  'SETTINGS',
@@ -4233,6 +4234,513 @@ const VerificationGate = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// LEARN TAB — Operator Cheatsheet + OSINT Methodology
+// ══════════════════════════════════════════════════════════════
+
+const CHEAT_CATS = [
+  { title: 'UNIVERSAL OPERATORS', note: 'Work on Google, Bing, and DuckDuckGo', ops: [
+    { key:'site',         name:'site:',       desc:'Limits results to a specific domain',      syntax:'site:example.com',         example:'site:reddit.com "password reset"',        engines:['G','B','DDG'],  tip:'Use site:*.example.com to include subdomains' },
+    { key:'filetype',     name:'filetype:',   desc:'Finds specific file types',                syntax:'filetype:pdf',             example:'filetype:xlsx "employee salary"',         engines:['G','B'],        tip:'Common values: pdf, xlsx, docx, csv, txt, xml, json, sql, env, log, conf, bak' },
+    { key:'intitle',      name:'intitle:',    desc:'Matches words in the page title',          syntax:'intitle:"exact phrase"',    example:'intitle:"index of /" passwords',          engines:['G','B','DDG'],  tip:'Quotes force exact match in title' },
+    { key:null,           name:'allintitle:', desc:'All words must appear in the page title',  syntax:'allintitle:word1 word2',    example:'allintitle:admin login panel',            engines:['G'],            tip:'No quotes needed — all words are required' },
+    { key:'inurl',        name:'inurl:',      desc:'Matches words in the URL',                 syntax:'inurl:admin',              example:'inurl:login inurl:php',                   engines:['G','B','DDG'],  tip:'Stack two inurl: operators to match multiple URL segments' },
+    { key:null,           name:'allinurl:',   desc:'All words must appear in URL',             syntax:'allinurl:admin login',     example:'allinurl:wp-admin upload',                engines:['G'],            tip:'Use for finding specific URL patterns' },
+    { key:'intext',       name:'intext:',     desc:'Matches text in the page body',            syntax:'intext:"exact phrase"',    example:'intext:"not for distribution"',           engines:['G','B'],        tip:'Combine with filetype: for targeted docs' },
+    { key:null,           name:'allintext:',  desc:'All words must appear in body',            syntax:'allintext:word1 word2',    example:'allintext:username password login',       engines:['G'],            tip:'Good for finding forms with specific fields' },
+    { key:'cache',        name:'cache:',      desc:"Shows Google's cached version of a page",  syntax:'cache:example.com',        example:'cache:pastebin.com/abc123',               engines:['G'],            tip:'Useful for seeing deleted or changed content' },
+    { key:'related',      name:'related:',    desc:'Finds similar websites',                   syntax:'related:example.com',      example:'related:github.com',                      engines:['G'],            tip:'Good for finding competitor or similar sites' },
+    { key:'link',         name:'link:',       desc:'Finds pages linking to a URL',             syntax:'link:example.com',         example:'link:targetsite.com',                     engines:['G','B'],        tip:'Bing gives better results for this operator' },
+    { key:'before',       name:'before:',     desc:'Results published before a date',          syntax:'before:YYYY-MM-DD',        example:'filetype:pdf before:2020-01-01',          engines:['G'],            tip:'Combine with after: to set a date range' },
+    { key:'after',        name:'after:',      desc:'Results published after a date',           syntax:'after:YYYY-MM-DD',         example:'site:example.com after:2023-06-01',       engines:['G'],            tip:'Great for finding recent breaches or leaks' },
+    { key:'exact',        name:'"quotes"',    desc:'Forces exact phrase match',                syntax:'"exact phrase here"',       example:'"internal use only" filetype:pdf',        engines:['G','B','DDG'],  tip:'Most powerful operator — use it everywhere' },
+    { key:'site_exclude', name:'-exclude',    desc:'Excludes pages or domains',                syntax:'-word or -site:example.com',example:'site:github.com -site:gist.github.com',  engines:['G','B','DDG'],  tip:'Stack multiple exclusions to refine results' },
+    { key:'OR',           name:'OR',          desc:'Matches either term',                      syntax:'term1 OR term2',            example:'filetype:env OR filetype:cfg password',   engines:['G','B','DDG'],  tip:'Use parentheses for complex logic' },
+    { key:null,           name:'* wildcard',  desc:'Matches any word in that position',        syntax:'"forgot * password"',       example:'"how to * admin panel"',                  engines:['G'],            tip:'Only works inside quoted phrases' },
+  ]},
+  { title: 'GOOGLE-SPECIFIC', note: 'Only work on Google Search', ops: [
+    { key:null, name:'define:', desc:'Shows dictionary definition', syntax:'define:word',          example:'define:phishing',              engines:['G'], tip:'Quick reference while researching' },
+    { key:null, name:'info:',   desc:'Shows info about a URL',       syntax:'info:example.com',     example:'info:targetsite.com',          engines:['G'], tip:'Shows cached, similar, and linking pages' },
+    { key:null, name:'map:',    desc:'Shows map results',             syntax:'map:location',         example:'map:"data center Chicago"',     engines:['G'], tip:'Useful for physical location OSINT' },
+  ]},
+  { title: 'BING-SPECIFIC', note: 'Exclusive to Bing search engine', ops: [
+    { key:'ip',           name:'ip:',        desc:'Finds sites on an IP address',   syntax:'ip:1.2.3.4',          example:'ip:192.168.1.1',                    engines:['B'], tip:'Find other sites on shared hosting' },
+    { key:'contains',     name:'contains:',  desc:'Finds pages linking to file types', syntax:'contains:pdf',     example:'site:gov.uk contains:xlsx',         engines:['B'], tip:'Different from filetype: — finds links TO files' },
+    { key:'language_bing',name:'language:',  desc:'Filters by page language',        syntax:'language:en',         example:'site:example.com language:fr',      engines:['B'], tip:'Use ISO 639-1 language codes' },
+  ]},
+  { title: 'GITHUB-SPECIFIC', note: 'For GitHub code search', ops: [
+    { key:'filename',   name:'filename:',   desc:'Searches for specific filenames',        syntax:'filename:.env',         example:'filename:config.php password',       engines:['GH'], tip:'Most powerful GitHub operator for secrets' },
+    { key:'extension',  name:'extension:',  desc:'Filters by file extension',              syntax:'extension:py',          example:'extension:env DB_PASSWORD',          engines:['GH'], tip:'Alias: ext:' },
+    { key:'language_gh',name:'language:',   desc:'Filters by programming language',        syntax:'language:javascript',   example:'language:python "api_key"',           engines:['GH'], tip:'Combine with other operators for precision' },
+    { key:'user',       name:'org: / user:',desc:'Searches within an org or user',         syntax:'org:orgname',           example:'org:microsoft filename:.env',         engines:['GH'], tip:"Find secrets across an entire org's repos" },
+    { key:'repo',       name:'repo:',       desc:'Searches within a specific repository',  syntax:'repo:user/reponame',    example:'repo:facebook/react password',        engines:['GH'], tip:'Scope searches to one project' },
+    { key:'path',       name:'path:',       desc:'Matches file path segments',             syntax:'path:config/',          example:'path:config/ extension:yml password', engines:['GH'], tip:'Great for finding config directories' },
+  ]},
+  { title: 'SHODAN-SPECIFIC', note: 'For Shodan device search — free tier limited to first 2 results', ops: [
+    { key:'hostname', name:'hostname:', desc:'Filters by hostname',                syntax:'hostname:example.com', example:'hostname:targetsite.com',         engines:['SH'], tip:'Free search only — full results need account' },
+    { key:'port',     name:'port:',     desc:'Filters by open port number',        syntax:'port:22',              example:'port:3389 org:"Company Name"',    engines:['SH'], tip:'Free search only' },
+    { key:'os',       name:'os:',       desc:'Filters by operating system',        syntax:'os:"Windows 7"',       example:'os:"Linux" port:22',              engines:['SH'], tip:'Free search only' },
+    { key:'org',      name:'org:',      desc:'Filters by organization or ISP',     syntax:'org:"Company Name"',   example:'org:"Amazon" port:8080',          engines:['SH'], tip:'Free search only' },
+    { key:'product',  name:'product:',  desc:'Filters by software or product',     syntax:'product:Apache',       example:'product:nginx port:443',          engines:['SH'], tip:'Free search only' },
+  ]},
+];
+
+const METH_CHAPTERS = [
+  { id:'ch01', num:'01', title:'WHAT IS OSINT?', html:`
+    <h3 class="meth-ch-title">01 — WHAT IS OSINT?</h3>
+    <p class="meth-body">Open Source Intelligence — collecting information from publicly available sources. Legal, ethical, and used by journalists, security researchers, HR departments, law enforcement, and curious individuals.</p>
+    <div class="meth-callout"><strong>Key principle:</strong> You're not hacking anything. You're finding information that was already public — just harder to find without the right tools.</div>
+    <h4 class="meth-sub-title">What counts as OSINT</h4>
+    <ul class="meth-list">
+      <li>Search engines (Google, Bing, DuckDuckGo)</li>
+      <li>Social media profiles</li>
+      <li>Public records (court docs, property records)</li>
+      <li>Code repositories (GitHub, GitLab)</li>
+      <li>Job postings and company websites</li>
+      <li>News articles and press releases</li>
+      <li>Domain and IP registration data</li>
+    </ul>
+    <h4 class="meth-sub-title">What is NOT OSINT</h4>
+    <ul class="meth-list">
+      <li>Accessing private systems without permission</li>
+      <li>Bypassing authentication</li>
+      <li>Social engineering (manipulating people)</li>
+      <li>Purchasing private data</li>
+    </ul>
+  `},
+  { id:'ch02', num:'02', title:'BEFORE YOU BEGIN', html:`
+    <h3 class="meth-ch-title">02 — BEFORE YOU BEGIN</h3>
+    <p class="meth-body">Define your objective clearly before searching. Unfocused searches waste time and produce noise.</p>
+    <h4 class="meth-sub-title">Ask yourself</h4>
+    <ul class="meth-list">
+      <li>What specific information do I need?</li>
+      <li>Why do I need it?</li>
+      <li>What will I do with it?</li>
+      <li>Is finding this information legal in my jurisdiction?</li>
+    </ul>
+    <h4 class="meth-sub-title">The OSINT mindset</h4>
+    <ul class="meth-list">
+      <li>Start broad, go narrow</li>
+      <li>Document everything as you go</li>
+      <li>One clue leads to the next</li>
+      <li>Absence of information is also information</li>
+      <li>Verify from multiple sources before concluding</li>
+    </ul>
+    <h4 class="meth-sub-title">Safety and ethics checklist</h4>
+    <div class="meth-callout">
+      ✓ I have a legitimate reason for this research<br>
+      ✓ I will not use findings to harm anyone<br>
+      ✓ I understand local privacy laws<br>
+      ✓ I will protect any sensitive data I find responsibly
+    </div>
+  `},
+  { id:'ch03', num:'03', title:'PERSON INVESTIGATION', html:`
+    <h3 class="meth-ch-title">03 — PERSON INVESTIGATION</h3>
+    <p class="meth-body">Step-by-step guide to researching an individual.</p>
+    <h4 class="meth-sub-title">Phase 1 — Seed data collection</h4>
+    <p class="meth-body">Start with what you know. Even one piece helps: full name, partial name, username, email, phone number, address, or employer.</p>
+    <h4 class="meth-sub-title">Phase 2 — Name search</h4>
+    <ol class="meth-steps">
+      <li><span class="meth-step-num">1.</span>Full name in quotes: <code>"John Doe"</code></li>
+      <li><span class="meth-step-num">2.</span>Name + location: <code>"John Doe" "Chicago"</code></li>
+      <li><span class="meth-step-num">3.</span>Name + employer: <code>"John Doe" "Acme Corp"</code></li>
+      <li><span class="meth-step-num">4.</span>Name on LinkedIn: <code>site:linkedin.com/in "John Doe"</code></li>
+      <li><span class="meth-step-num">5.</span>Name on other platforms</li>
+    </ol>
+    <div class="meth-chips-wrap">
+      <span class="meth-chip" data-template="Name">→ Basic Name Search</span>
+      <span class="meth-chip" data-template="LinkedIn">→ Full Name on LinkedIn</span>
+    </div>
+    <h4 class="meth-sub-title">Phase 3 — Username pivoting</h4>
+    <p class="meth-body">If you find a username, search it everywhere. The same username is often used across platforms. Check: Twitter, Instagram, Reddit, GitHub, Steam, Discord, TikTok, YouTube, Twitch.</p>
+    <div class="meth-chips-wrap">
+      <span class="meth-chip" data-template="Username">→ Username Sweep</span>
+    </div>
+    <h4 class="meth-sub-title">Phase 4 — Email investigation</h4>
+    <p class="meth-body">Email addresses are goldmines: search the full address in quotes, try the username part as a handle, check if it appears in breach data (HaveIBeenPwned), find the domain and research the org.</p>
+    <h4 class="meth-sub-title">Phase 5 — Cross-referencing</h4>
+    <p class="meth-body">Take findings from each phase and feed them back in. New employer → search employer directory. New city → refine location searches. New username → pivot to that platform.</p>
+    <h4 class="meth-sub-title">Phase 6 — Document findings</h4>
+    <p class="meth-body">Use DorkForge History to track your searches. Export as JSON when investigation is complete. Note: what you found, where you found it, when.</p>
+  `},
+  { id:'ch04', num:'04', title:'COMPANY INVESTIGATION', html:`
+    <h3 class="meth-ch-title">04 — COMPANY INVESTIGATION</h3>
+    <p class="meth-body">Step-by-step guide to researching an organization.</p>
+    <h4 class="meth-sub-title">Phase 1 — Basic recon</h4>
+    <ol class="meth-steps">
+      <li><span class="meth-step-num">1.</span>Company name + location search</li>
+      <li><span class="meth-step-num">2.</span>Official website and About page</li>
+      <li><span class="meth-step-num">3.</span>LinkedIn company page</li>
+      <li><span class="meth-step-num">4.</span>Recent news and press releases</li>
+      <li><span class="meth-step-num">5.</span>Job postings (reveals tech stack + org structure)</li>
+    </ol>
+    <h4 class="meth-sub-title">Phase 2 — Technical footprint</h4>
+    <ol class="meth-steps">
+      <li><span class="meth-step-num">1.</span>Find all subdomains: <code>site:*.company.com</code></li>
+      <li><span class="meth-step-num">2.</span>Find exposed files: <code>site:company.com filetype:pdf</code></li>
+      <li><span class="meth-step-num">3.</span>Find login portals: <code>site:company.com inurl:login</code></li>
+      <li><span class="meth-step-num">4.</span>Check Shodan for infrastructure</li>
+      <li><span class="meth-step-num">5.</span>Check certificate transparency logs (crt.sh)</li>
+    </ol>
+    <div class="meth-chips-wrap">
+      <span class="meth-chip" data-template="Subdomain">→ Subdomain Sweep</span>
+      <span class="meth-chip" data-template="Login Portal">→ Company Login Portals</span>
+      <span class="meth-chip" data-template="Employee">→ Employee Directory</span>
+    </div>
+    <h4 class="meth-sub-title">Phase 3 — People within the org</h4>
+    <ul class="meth-list">
+      <li>Find employees on LinkedIn</li>
+      <li>Find email format (firstname.lastname@company.com)</li>
+      <li>Check executive names in news/filings</li>
+      <li>Look for org charts in PDFs</li>
+    </ul>
+    <h4 class="meth-sub-title">Phase 4 — Document and filing research</h4>
+    <ul class="meth-list">
+      <li>SEC EDGAR for public companies</li>
+      <li>Companies House (UK) for UK companies</li>
+      <li>State business registration databases</li>
+      <li>Court records for any litigation</li>
+      <li>Patent filings</li>
+    </ul>
+  `},
+  { id:'ch05', num:'05', title:'USING GOOGLE DORKS EFFECTIVELY', html:`
+    <h3 class="meth-ch-title">05 — USING GOOGLE DORKS EFFECTIVELY</h3>
+    <p class="meth-body">Practical tips for getting better results with search operators.</p>
+    <h4 class="meth-sub-title">The golden rules</h4>
+    <ol class="meth-steps">
+      <li><span class="meth-step-num">1.</span>Always start with quotes around key phrases</li>
+      <li><span class="meth-step-num">2.</span>Add <code>site:</code> when you know where to look</li>
+      <li><span class="meth-step-num">3.</span>Stack operators — each one narrows results further</li>
+      <li><span class="meth-step-num">4.</span>Use the Strength Meter — aim for 7.5+</li>
+      <li><span class="meth-step-num">5.</span>Try multiple engines — Bing finds different results</li>
+    </ol>
+    <h4 class="meth-sub-title">Iterating your dork</h4>
+    <div class="meth-callout">
+      <strong>Bad:</strong> <code>password</code><br>
+      <strong>OK:</strong> <code>filetype:txt password</code><br>
+      <strong>Good:</strong> <code>filetype:txt "password" site:pastebin.com</code><br>
+      <strong>Best:</strong> <code>filetype:txt "password" "username" site:pastebin.com after:2023-01-01</code>
+    </div>
+    <h4 class="meth-sub-title">When results are too many</h4>
+    <ul class="meth-list">
+      <li>Add more operators</li>
+      <li>Add <code>site:</code> to limit domain</li>
+      <li>Add <code>after:</code> to limit date range</li>
+      <li>Add more quoted phrases</li>
+      <li>Add exclusions with <code>-</code></li>
+    </ul>
+    <h4 class="meth-sub-title">When results are too few</h4>
+    <ul class="meth-list">
+      <li>Remove the most restrictive operator</li>
+      <li>Try OR between key terms</li>
+      <li>Remove date filters</li>
+      <li>Try a different search engine</li>
+      <li>Remove <code>site:</code> operator</li>
+    </ul>
+    <h4 class="meth-sub-title">Dork chaining strategy</h4>
+    <div class="meth-callout">
+      <strong>Search 1:</strong> Broad — find what exists<br>
+      <strong>Search 2:</strong> Add one operator — narrow the field<br>
+      <strong>Search 3:</strong> Add another — get to the target<br>
+      Use DorkForge History to track this progression.
+    </div>
+  `},
+  { id:'ch06', num:'06', title:'STAYING SAFE & LEGAL', html:`
+    <h3 class="meth-ch-title">06 — STAYING SAFE & LEGAL</h3>
+    <p class="meth-body">Important information every researcher should know.</p>
+    <h4 class="meth-sub-title">What is legal</h4>
+    <ul class="meth-list">
+      <li>Searching public information via search engines</li>
+      <li>Viewing publicly accessible web pages</li>
+      <li>Reading public records and court documents</li>
+      <li>Researching public figures (politicians, executives)</li>
+      <li>Security research on your own systems</li>
+    </ul>
+    <h4 class="meth-sub-title">Grey areas (consult a lawyer)</h4>
+    <ul class="meth-list">
+      <li>Aggregating public data about private individuals</li>
+      <li>Accessing data left accidentally public</li>
+      <li>Scraping websites against their Terms of Service</li>
+      <li>Cross-border privacy law differences</li>
+    </ul>
+    <h4 class="meth-sub-title">What is not legal</h4>
+    <div class="meth-callout meth-callout-warn">
+      ✗ Accessing computer systems without authorization<br>
+      ✗ Bypassing any authentication or access control<br>
+      ✗ Stalking or harassment using OSINT findings<br>
+      ✗ Using findings to facilitate fraud or identity theft<br>
+      ✗ Violating GDPR, CCPA, or other privacy laws
+    </div>
+    <h4 class="meth-sub-title">Responsible disclosure</h4>
+    <p class="meth-body">If you find accidentally exposed sensitive data (credentials, PII, confidential documents) consider notifying the affected organization rather than using or sharing the data. This is known as responsible disclosure and is respected in the security community.</p>
+  `},
+  { id:'ch07', num:'07', title:'TOOLS BEYOND DORKFORGE', html:`
+    <h3 class="meth-ch-title">07 — TOOLS BEYOND DORKFORGE</h3>
+    <p class="meth-body">Free tools that complement your OSINT workflow.</p>
+    <div class="meth-category-header">SEARCH & DISCOVERY</div>
+    <div class="meth-tools-grid">
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://shodan.io" target="_blank" rel="noopener">Shodan</a><span class="meth-tool-desc">Device and infrastructure search engine</span><span class="meth-badge meth-badge-freemium">FREEMIUM</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://censys.io" target="_blank" rel="noopener">Censys</a><span class="meth-tool-desc">Certificate and port intelligence</span><span class="meth-badge meth-badge-freemium">FREEMIUM</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://urlscan.io" target="_blank" rel="noopener">URLScan</a><span class="meth-tool-desc">Website scanner and URL analyzer</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://virustotal.com" target="_blank" rel="noopener">VirusTotal</a><span class="meth-tool-desc">File and URL malware analysis</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://archive.org" target="_blank" rel="noopener">Archive.org</a><span class="meth-tool-desc">Historical web snapshots (Wayback Machine)</span><span class="meth-badge meth-badge-free">FREE</span></div>
+    </div>
+    <div class="meth-category-header">PEOPLE & IDENTITY</div>
+    <div class="meth-tools-grid">
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://haveibeenpwned.com" target="_blank" rel="noopener">HaveIBeenPwned</a><span class="meth-tool-desc">Check if email was in a data breach</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://namechk.com" target="_blank" rel="noopener">Namechk</a><span class="meth-tool-desc">Username availability across platforms</span><span class="meth-badge meth-badge-free">FREE</span></div>
+    </div>
+    <div class="meth-category-header">DOMAIN & IP</div>
+    <div class="meth-tools-grid">
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://whois.domaintools.com" target="_blank" rel="noopener">WHOIS Lookup</a><span class="meth-tool-desc">Domain registration details</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://dnsdumpster.com" target="_blank" rel="noopener">DNSdumpster</a><span class="meth-tool-desc">DNS records and subdomain discovery</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://viewdns.info" target="_blank" rel="noopener">ViewDNS</a><span class="meth-tool-desc">IP history, reverse DNS, and more</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://securitytrails.com" target="_blank" rel="noopener">SecurityTrails</a><span class="meth-tool-desc">DNS history and domain intelligence</span><span class="meth-badge meth-badge-freemium">FREEMIUM</span></div>
+    </div>
+    <div class="meth-category-header">IMAGES</div>
+    <div class="meth-tools-grid">
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://tineye.com" target="_blank" rel="noopener">TinEye</a><span class="meth-tool-desc">Reverse image search</span><span class="meth-badge meth-badge-free">FREE</span></div>
+      <div class="meth-tool-card"><a class="meth-tool-name" href="https://pimeyes.com" target="_blank" rel="noopener">PimEyes</a><span class="meth-tool-desc">Face search engine</span><span class="meth-badge meth-badge-freemium">FREEMIUM</span></div>
+    </div>
+  `},
+];
+
+function initLearn() {
+  const ALL_ENGINES = ['G','B','DDG','GH','SH'];
+  const ENGINE_LABELS = { G:'Google', B:'Bing', DDG:'DuckDuckGo', GH:'GitHub', SH:'Shodan' };
+
+  // ── Sub-nav toggle ────────────────────────────────────────────
+  document.querySelectorAll('.learn-subnav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.learn-subnav-btn').forEach(b => b.classList.remove('lsnav-active'));
+      btn.classList.add('lsnav-active');
+      document.querySelectorAll('.learn-section').forEach(s => { s.hidden = true; });
+      const sec = document.getElementById(`learn-${btn.dataset.lsec}`);
+      if (sec) sec.hidden = false;
+    });
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function _highlight(text, q) {
+    if (!q) return _esc(text);
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+    return _esc(text).replace(re, '<mark class="cs-highlight">$1</mark>');
+  }
+
+  function _openTemplateSearch(term) {
+    switchTab('templates');
+    const el = document.getElementById('template-search') ||
+               document.querySelector('#panel-templates input[type="text"]');
+    if (el) { el.value = term; el.dispatchEvent(new Event('input')); }
+  }
+
+  function _loadOpIntoBuilder(key) {
+    if (!window.builder || !key) return;
+    window.builder.addOperator(key, '');
+    switchTab('builder');
+  }
+
+  // ── CHEATSHEET ────────────────────────────────────────────────
+  function _renderCheatsheet() {
+    const container = document.getElementById('learn-cheatsheet');
+    if (!container) return;
+
+    // Search bar
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'cs-search-wrap';
+    searchWrap.innerHTML = '<input type="text" id="cs-search" class="cs-search" placeholder="SEARCH OPERATORS..." autocomplete="off" spellcheck="false">';
+    container.appendChild(searchWrap);
+
+    // No-results
+    const noRes = document.createElement('div');
+    noRes.className = 'cs-no-results';
+    noRes.id = 'cs-no-results';
+    noRes.innerHTML = 'NO OPERATORS MATCH YOUR SEARCH<br><button class="cs-clear-btn" id="cs-clear">CLEAR SEARCH</button>';
+    container.appendChild(noRes);
+
+    // Categories
+    CHEAT_CATS.forEach(cat => {
+      const catEl = document.createElement('div');
+      catEl.className = 'cs-category';
+      catEl.dataset.cat = cat.title;
+
+      const header = document.createElement('div');
+      header.className = 'cs-cat-header';
+      header.textContent = cat.title;
+      catEl.appendChild(header);
+
+      if (cat.note) {
+        const note = document.createElement('div');
+        note.className = 'cs-cat-note';
+        note.textContent = cat.note;
+        catEl.appendChild(note);
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'cs-grid';
+
+      cat.ops.forEach(op => {
+        const card = document.createElement('div');
+        card.className = 'lop-card';
+        card.dataset.search = [op.name, op.desc, op.example, op.tip || ''].join(' ').toLowerCase();
+
+        const badges = ALL_ENGINES.map(e =>
+          `<span class="lop-badge ${op.engines.includes(e) ? 'lop-badge-on' : 'lop-badge-off'}" title="${ENGINE_LABELS[e]}">${e}</span>`
+        ).join('');
+
+        card.innerHTML = `
+          <div class="lop-card-head">
+            <span class="lop-name">${_esc(op.name)}</span>
+            <div class="lop-badges">${badges}</div>
+          </div>
+          <div class="lop-field"><span class="lop-label">WHAT</span><span class="lop-val">${_esc(op.desc)}</span></div>
+          <div class="lop-field"><span class="lop-label">SYNTAX</span><span class="lop-val lop-example">${_esc(op.syntax)}</span></div>
+          <div class="lop-field"><span class="lop-label">EXAMPLE</span><span class="lop-val lop-example">${_esc(op.example)}</span></div>
+          ${op.tip ? `<div class="lop-field"><span class="lop-label">TIP</span><span class="lop-val lop-tip">${_esc(op.tip)}</span></div>` : ''}
+          ${op.key ? `<button class="lop-load" data-opkey="${_esc(op.key)}">+ LOAD INTO BUILDER</button>` : ''}
+        `;
+
+        grid.appendChild(card);
+      });
+
+      catEl.appendChild(grid);
+      container.appendChild(catEl);
+    });
+
+    // Load-into-builder clicks
+    container.addEventListener('click', e => {
+      const btn = e.target.closest('.lop-load');
+      if (!btn) return;
+      _loadOpIntoBuilder(btn.dataset.opkey);
+    });
+
+    // Template chip clicks
+    container.addEventListener('click', e => {
+      const chip = e.target.closest('.meth-chip');
+      if (!chip) return;
+      _openTemplateSearch(chip.dataset.template);
+    });
+
+    // Search filter
+    document.getElementById('cs-search')?.addEventListener('input', function () {
+      _filterCheatsheet(this.value.trim().toLowerCase());
+    });
+    document.getElementById('cs-clear')?.addEventListener('click', () => {
+      const el = document.getElementById('cs-search');
+      if (el) { el.value = ''; _filterCheatsheet(''); }
+    });
+  }
+
+  function _filterCheatsheet(q) {
+    let totalVisible = 0;
+    document.querySelectorAll('#learn-cheatsheet .cs-category').forEach(catEl => {
+      let catVisible = 0;
+      catEl.querySelectorAll('.lop-card').forEach(card => {
+        const match = !q || card.dataset.search.includes(q);
+        card.hidden = !match;
+        if (match) catVisible++;
+      });
+      catEl.hidden = catVisible === 0;
+      totalVisible += catVisible;
+    });
+    const noRes = document.getElementById('cs-no-results');
+    if (noRes) noRes.classList.toggle('cs-visible', totalVisible === 0 && q.length > 0);
+  }
+
+  // ── METHODOLOGY ───────────────────────────────────────────────
+  function _renderMethodology() {
+    const container = document.getElementById('learn-methodology');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="meth-select-wrap">
+        <select class="meth-select" id="meth-select">
+          ${METH_CHAPTERS.map(c => `<option value="${c.id}">${c.num}. ${c.title}</option>`).join('')}
+        </select>
+      </div>
+      <div class="meth-layout">
+        <nav class="meth-sidebar" id="meth-sidebar">
+          ${METH_CHAPTERS.map(c => `
+            <div class="meth-ch-item" data-chid="${c.id}">
+              <span class="meth-ch-num">${c.num}</span>
+              <span class="meth-ch-title-sidebar">${c.title}</span>
+            </div>
+          `).join('')}
+        </nav>
+        <div class="meth-content-wrap">
+          <div class="meth-progress-bar"><div class="meth-progress-fill" id="meth-progress"></div></div>
+          <div class="meth-content" id="meth-content">
+            ${METH_CHAPTERS.map(c => `<section class="meth-chapter" id="${c.id}">${c.html}</section>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Sidebar chapter navigation
+    container.querySelectorAll('.meth-ch-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const target = document.getElementById(item.dataset.chid);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        _setActiveChapter(item.dataset.chid);
+      });
+    });
+
+    // Mobile select navigation
+    container.querySelector('#meth-select')?.addEventListener('change', function () {
+      const target = document.getElementById(this.value);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      _setActiveChapter(this.value);
+    });
+
+    // Template chip clicks
+    container.addEventListener('click', e => {
+      const chip = e.target.closest('.meth-chip');
+      if (!chip) return;
+      _openTemplateSearch(chip.dataset.template);
+    });
+
+    // Progress bar + active chapter on scroll
+    const content = container.querySelector('#meth-content');
+    if (content) {
+      content.addEventListener('scroll', () => {
+        const prog = document.getElementById('meth-progress');
+        if (prog) {
+          const pct = content.scrollHeight > content.clientHeight
+            ? (content.scrollTop / (content.scrollHeight - content.clientHeight)) * 100
+            : 0;
+          prog.style.width = pct + '%';
+        }
+        // Find which chapter is most visible
+        let active = null;
+        container.querySelectorAll('.meth-chapter').forEach(sec => {
+          const rect = sec.getBoundingClientRect();
+          const contentRect = content.getBoundingClientRect();
+          if (rect.top <= contentRect.top + contentRect.height * 0.4) active = sec.id;
+        });
+        if (active) _setActiveChapter(active);
+      });
+    }
+
+    _setActiveChapter('ch01');
+  }
+
+  function _setActiveChapter(id) {
+    document.querySelectorAll('.meth-ch-item').forEach(item => {
+      item.classList.toggle('meth-ch-active', item.dataset.chid === id);
+    });
+    const sel = document.getElementById('meth-select');
+    if (sel) sel.value = id;
+  }
+
+  // Render both sections
+  _renderCheatsheet();
+  _renderMethodology();
+}
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -4248,6 +4756,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[DorkForge] preview element:', document.getElementById('query-preview'));
   TemplateManager.init();
   renderHistory();
+  initLearn();
   initMobile();
   DorkWizard.init();
   initOperatorTooltip();
