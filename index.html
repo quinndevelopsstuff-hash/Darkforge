@@ -4,6 +4,46 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DorkForge — OSINT Dork Builder</title>
+
+  <!-- Flash prevention: set core CSS variables + background BEFORE stylesheet loads.
+       Prevents white/wrong-color flash for users with a saved theme. -->
+  <script>
+    (function () {
+      // bg-primary, color-primary, color-secondary, color-danger, bg-secondary
+      var T = {
+        'hacker-terminal':    ['#0a0a0a','#f59e0b','#84cc16','#ef4444','#111111'],
+        'synthwave':          ['#0d0010','#e879f9','#38bdf8','#f472b6','#1a0025'],
+        'matrix':             ['#000a00','#22c55e','#4ade80','#86efac','#001400'],
+        'blood-noir':         ['#0a0000','#ef4444','#fca5a5','#dc2626','#1a0000'],
+        'arctic':             ['#00080f','#38bdf8','#7dd3fc','#f472b6','#001020'],
+        'tactical-olive':     ['#080b08','#a3a832','#d4d876','#cd5c00','#111408'],
+        'clean-minimal-dark': ['#0c0c0e','#94a3b8','#3b82f6','#ef4444','#18181b'],
+        'terminal-light':     ['#fffbf0','#d97706','#65a30d','#dc2626','#fef3c7'],
+        'synthwave-light':    ['#f5f0ff','#7c3aed','#0284c7','#db2777','#ede9fe'],
+        'matrix-light':       ['#f0fff4','#15803d','#16a34a','#dc2626','#dcfce7'],
+        'blood-noir-light':   ['#fff5f5','#b91c1c','#dc2626','#7f1d1d','#fee2e2'],
+        'arctic-light':       ['#f0f9ff','#0369a1','#0ea5e9','#dc2626','#e0f2fe'],
+        'tactical-light':     ['#f7f7f0','#717100','#a16207','#854d0e','#fefce8'],
+        'clean-minimal-light':['#f8fafc','#475569','#1e40af','#dc2626','#f1f5f9']
+      };
+      var n = localStorage.getItem('dorkforge_theme') || 'hacker-terminal';
+      var v = T[n] || T['hacker-terminal'];
+      var r = document.documentElement;
+      r.style.setProperty('--bg-primary',      v[0]);
+      r.style.setProperty('--color-primary',   v[1]);
+      r.style.setProperty('--color-secondary', v[2]);
+      r.style.setProperty('--color-danger',    v[3]);
+      r.style.setProperty('--bg-secondary',    v[4]);
+      r.style.background = v[0];
+
+      // Also handle verification gate-skip
+      var stored = localStorage.getItem('dorkforge_verified');
+      if (stored && (Date.now() - parseInt(stored, 10)) < 604800000) {
+        r.classList.add('gate-skip');
+      }
+    })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet" />
@@ -629,18 +669,40 @@
 
         <div class="settings-divider"></div>
 
-        <!-- Theme (future) -->
+        <!-- Appearance Mode -->
         <div class="settings-row">
           <div class="settings-row-info">
-            <span class="settings-row-label">THEME</span>
-            <span class="settings-row-desc">Visual theme selection (future feature)</span>
+            <span class="settings-row-label">APPEARANCE MODE</span>
+            <span class="settings-row-desc">Choose between dark and light interface</span>
           </div>
-          <!-- JS: id="setting-theme" change → applyTheme() -->
-          <select id="setting-theme" class="op-select settings-select" disabled>
-            <option value="amber">Amber Terminal (default)</option>
-            <option value="green">Phosphor Green</option>
-            <option value="red">Red Alert</option>
-          </select>
+          <!-- JS: ThemeEngine.init() wires this select -->
+          <div class="select-arrow-wrap">
+            <select id="setting-mode" class="op-select settings-select">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Color Theme -->
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <span class="settings-row-label">COLOR THEME</span>
+            <span class="settings-row-desc">Select your color palette</span>
+          </div>
+          <!-- JS: ThemeEngine populates + wires this select -->
+          <div class="select-arrow-wrap">
+            <select id="setting-theme" class="op-select settings-select">
+              <!-- Options injected by ThemeEngine._syncThemeDropdown() -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Theme Preview Strip -->
+        <div id="theme-preview-strip" class="theme-preview-strip">
+          <!-- Dots injected by ThemeEngine._syncPreviewStrip() -->
         </div>
 
         <div class="settings-divider"></div>
@@ -652,10 +714,12 @@
             <span class="settings-row-desc">Where engine searches open</span>
           </div>
           <!-- JS: id="setting-link-target" change → saveLinkTarget() -->
-          <select id="setting-link-target" class="op-select settings-select">
-            <option value="_blank">New tab</option>
-            <option value="_self">Same tab</option>
-          </select>
+          <div class="select-arrow-wrap">
+            <select id="setting-link-target" class="op-select settings-select">
+              <option value="_blank">New tab</option>
+              <option value="_self">Same tab</option>
+            </select>
+          </div>
         </div>
 
         <div class="settings-divider"></div>

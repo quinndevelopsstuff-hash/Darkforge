@@ -1,6 +1,266 @@
 'use strict';
 
 // ══════════════════════════════════════════════════════════════
+// THEME ENGINE — defined first so theme applies before DOM renders
+// ══════════════════════════════════════════════════════════════
+
+const THEMES = [
+  // ── Dark ────────────────────────────────────────────────────
+  { name: 'hacker-terminal', label: 'Hacker Terminal', mode: 'dark', vars: {
+    '--bg-primary': '#0a0a0a', '--bg-secondary': '#111111', '--bg-tertiary': '#0d0d0d',
+    '--color-primary': '#f59e0b', '--color-secondary': '#84cc16', '--color-danger': '#ef4444',
+    '--color-dim': '#6b7280', '--color-text': '#e5e7eb',
+    '--border-color': 'rgba(245,158,11,0.3)', '--border-bright': 'rgba(245,158,11,0.7)',
+    '--glow': '0 0 8px rgba(245,158,11,0.4)', '--scanline-color': 'rgba(245,158,11,0.03)',
+    '--cursor-color': '#f59e0b', '--color-on-primary': '#000000', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#1a1a1a', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  { name: 'synthwave', label: 'Synthwave', mode: 'dark', vars: {
+    '--bg-primary': '#0d0010', '--bg-secondary': '#1a0025', '--bg-tertiary': '#100015',
+    '--color-primary': '#e879f9', '--color-secondary': '#38bdf8', '--color-danger': '#f472b6',
+    '--color-dim': '#7c3aed', '--color-text': '#f0e6ff',
+    '--border-color': 'rgba(232,121,249,0.3)', '--border-bright': 'rgba(232,121,249,0.7)',
+    '--glow': '0 0 8px rgba(232,121,249,0.4)', '--scanline-color': 'rgba(168,85,247,0.04)',
+    '--cursor-color': '#e879f9', '--color-on-primary': '#000000', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#2a0035', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  { name: 'matrix', label: 'Matrix', mode: 'dark', vars: {
+    '--bg-primary': '#000a00', '--bg-secondary': '#001400', '--bg-tertiary': '#000d00',
+    '--color-primary': '#22c55e', '--color-secondary': '#4ade80', '--color-danger': '#86efac',
+    '--color-dim': '#166534', '--color-text': '#dcfce7',
+    '--border-color': 'rgba(34,197,94,0.3)', '--border-bright': 'rgba(34,197,94,0.7)',
+    '--glow': '0 0 8px rgba(34,197,94,0.4)', '--scanline-color': 'rgba(34,197,94,0.04)',
+    '--cursor-color': '#22c55e', '--color-on-primary': '#000000', '--color-on-danger': '#000000',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#001a00', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  { name: 'blood-noir', label: 'Blood Noir', mode: 'dark', vars: {
+    '--bg-primary': '#0a0000', '--bg-secondary': '#1a0000', '--bg-tertiary': '#0d0000',
+    '--color-primary': '#ef4444', '--color-secondary': '#fca5a5', '--color-danger': '#dc2626',
+    '--color-dim': '#7f1d1d', '--color-text': '#fee2e2',
+    '--border-color': 'rgba(239,68,68,0.3)', '--border-bright': 'rgba(239,68,68,0.7)',
+    '--glow': '0 0 8px rgba(239,68,68,0.4)', '--scanline-color': 'rgba(239,68,68,0.04)',
+    '--cursor-color': '#ef4444', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#260000', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  { name: 'arctic', label: 'Arctic', mode: 'dark', vars: {
+    '--bg-primary': '#00080f', '--bg-secondary': '#001020', '--bg-tertiary': '#000d18',
+    '--color-primary': '#38bdf8', '--color-secondary': '#7dd3fc', '--color-danger': '#f472b6',
+    '--color-dim': '#075985', '--color-text': '#e0f2fe',
+    '--border-color': 'rgba(56,189,248,0.3)', '--border-bright': 'rgba(56,189,248,0.7)',
+    '--glow': '0 0 8px rgba(56,189,248,0.4)', '--scanline-color': 'rgba(56,189,248,0.04)',
+    '--cursor-color': '#38bdf8', '--color-on-primary': '#000000', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#001525', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  { name: 'tactical-olive', label: 'Tactical Olive', mode: 'dark', vars: {
+    '--bg-primary': '#080b08', '--bg-secondary': '#111408', '--bg-tertiary': '#0a0d08',
+    '--color-primary': '#a3a832', '--color-secondary': '#d4d876', '--color-danger': '#cd5c00',
+    '--color-dim': '#4a4a1a', '--color-text': '#e8e8c8',
+    '--border-color': 'rgba(163,168,50,0.3)', '--border-bright': 'rgba(163,168,50,0.7)',
+    '--glow': '0 0 8px rgba(163,168,50,0.4)', '--scanline-color': 'rgba(163,168,50,0.04)',
+    '--cursor-color': '#a3a832', '--color-on-primary': '#000000', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#1a1c0a', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  { name: 'clean-minimal-dark', label: 'Clean Minimal Dark', mode: 'dark', vars: {
+    '--bg-primary': '#0c0c0e', '--bg-secondary': '#18181b', '--bg-tertiary': '#111113',
+    '--color-primary': '#94a3b8', '--color-secondary': '#3b82f6', '--color-danger': '#ef4444',
+    '--color-dim': '#52525b', '--color-text': '#e2e8f0',
+    '--border-color': 'rgba(148,163,184,0.3)', '--border-bright': 'rgba(148,163,184,0.7)',
+    '--glow': '0 0 8px rgba(148,163,184,0.3)', '--scanline-color': 'rgba(148,163,184,0.02)',
+    '--cursor-color': '#94a3b8', '--color-on-primary': '#000000', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.72)', '--scanline-stripe': 'rgba(0,0,0,0.18)',
+    '--bg-inset': '#222225', '--bg-highlight': 'rgba(255,255,255,0.04)',
+  }},
+  // ── Light ────────────────────────────────────────────────────
+  { name: 'terminal-light', label: 'Terminal Light', mode: 'light', vars: {
+    '--bg-primary': '#fffbf0', '--bg-secondary': '#fef3c7', '--bg-tertiary': '#fffdf5',
+    '--color-primary': '#d97706', '--color-secondary': '#65a30d', '--color-danger': '#dc2626',
+    '--color-dim': '#92400e', '--color-text': '#1c1917',
+    '--border-color': 'rgba(217,119,6,0.3)', '--border-bright': 'rgba(217,119,6,0.7)',
+    '--glow': '0 0 8px rgba(217,119,6,0.3)', '--scanline-color': 'rgba(217,119,6,0.02)',
+    '--cursor-color': '#d97706', '--color-on-primary': '#000000', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#f0e8d0', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+  { name: 'synthwave-light', label: 'Synthwave Light', mode: 'light', vars: {
+    '--bg-primary': '#f5f0ff', '--bg-secondary': '#ede9fe', '--bg-tertiary': '#faf7ff',
+    '--color-primary': '#7c3aed', '--color-secondary': '#0284c7', '--color-danger': '#db2777',
+    '--color-dim': '#6d28d9', '--color-text': '#1e1b4b',
+    '--border-color': 'rgba(124,58,237,0.3)', '--border-bright': 'rgba(124,58,237,0.7)',
+    '--glow': '0 0 8px rgba(124,58,237,0.3)', '--scanline-color': 'rgba(124,58,237,0.02)',
+    '--cursor-color': '#7c3aed', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#dcd5f0', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+  { name: 'matrix-light', label: 'Matrix Light', mode: 'light', vars: {
+    '--bg-primary': '#f0fff4', '--bg-secondary': '#dcfce7', '--bg-tertiary': '#f7fff9',
+    '--color-primary': '#15803d', '--color-secondary': '#16a34a', '--color-danger': '#dc2626',
+    '--color-dim': '#166534', '--color-text': '#052e16',
+    '--border-color': 'rgba(21,128,61,0.3)', '--border-bright': 'rgba(21,128,61,0.7)',
+    '--glow': '0 0 8px rgba(21,128,61,0.3)', '--scanline-color': 'rgba(21,128,61,0.02)',
+    '--cursor-color': '#15803d', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#c8f0d4', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+  { name: 'blood-noir-light', label: 'Blood Noir Light', mode: 'light', vars: {
+    '--bg-primary': '#fff5f5', '--bg-secondary': '#fee2e2', '--bg-tertiary': '#fff8f8',
+    '--color-primary': '#b91c1c', '--color-secondary': '#dc2626', '--color-danger': '#7f1d1d',
+    '--color-dim': '#991b1b', '--color-text': '#1c0000',
+    '--border-color': 'rgba(185,28,28,0.3)', '--border-bright': 'rgba(185,28,28,0.7)',
+    '--glow': '0 0 8px rgba(185,28,28,0.3)', '--scanline-color': 'rgba(185,28,28,0.02)',
+    '--cursor-color': '#b91c1c', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#fcc8c8', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+  { name: 'arctic-light', label: 'Arctic Light', mode: 'light', vars: {
+    '--bg-primary': '#f0f9ff', '--bg-secondary': '#e0f2fe', '--bg-tertiary': '#f8fcff',
+    '--color-primary': '#0369a1', '--color-secondary': '#0ea5e9', '--color-danger': '#dc2626',
+    '--color-dim': '#075985', '--color-text': '#0c1a2e',
+    '--border-color': 'rgba(3,105,161,0.3)', '--border-bright': 'rgba(3,105,161,0.7)',
+    '--glow': '0 0 8px rgba(3,105,161,0.3)', '--scanline-color': 'rgba(3,105,161,0.02)',
+    '--cursor-color': '#0369a1', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#c8e8f8', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+  { name: 'tactical-light', label: 'Tactical Light', mode: 'light', vars: {
+    '--bg-primary': '#f7f7f0', '--bg-secondary': '#fefce8', '--bg-tertiary': '#fafaff',
+    '--color-primary': '#717100', '--color-secondary': '#a16207', '--color-danger': '#854d0e',
+    '--color-dim': '#713f12', '--color-text': '#1a1a00',
+    '--border-color': 'rgba(113,113,0,0.3)', '--border-bright': 'rgba(113,113,0,0.7)',
+    '--glow': '0 0 8px rgba(113,113,0,0.3)', '--scanline-color': 'rgba(113,113,0,0.02)',
+    '--cursor-color': '#717100', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#e8e8d0', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+  { name: 'clean-minimal-light', label: 'Clean Minimal Light', mode: 'light', vars: {
+    '--bg-primary': '#f8fafc', '--bg-secondary': '#f1f5f9', '--bg-tertiary': '#ffffff',
+    '--color-primary': '#475569', '--color-secondary': '#1e40af', '--color-danger': '#dc2626',
+    '--color-dim': '#94a3b8', '--color-text': '#0f172a',
+    '--border-color': 'rgba(71,85,105,0.3)', '--border-bright': 'rgba(71,85,105,0.7)',
+    '--glow': '0 0 8px rgba(71,85,105,0.2)', '--scanline-color': 'rgba(71,85,105,0.01)',
+    '--cursor-color': '#475569', '--color-on-primary': '#ffffff', '--color-on-danger': '#ffffff',
+    '--overlay-bg': 'rgba(0,0,0,0.5)', '--scanline-stripe': 'rgba(0,0,0,0.06)',
+    '--bg-inset': '#e2e8f0', '--bg-highlight': 'rgba(0,0,0,0.04)',
+  }},
+];
+
+class ThemeEngine {
+  constructor() {
+    this._mode  = localStorage.getItem('dorkforge_mode')  || 'dark';
+    this._theme = localStorage.getItem('dorkforge_theme') || 'hacker-terminal';
+    // Apply immediately — before DOM renders — to prevent flash
+    this._applyVars(this._theme);
+  }
+
+  // ── Internal: set CSS properties only (no transition, no UI update) ──
+  _applyVars(themeName) {
+    const theme = THEMES.find(t => t.name === themeName);
+    if (!theme) return;
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(theme.vars)) {
+      root.style.setProperty(k, v);
+    }
+  }
+
+  // ── Public: apply theme with transition + persist + event ──────────
+  applyTheme(themeName) {
+    const theme = THEMES.find(t => t.name === themeName);
+    if (!theme) return;
+    document.body?.classList.add('theme-transitioning');
+    this._applyVars(themeName);
+    this._theme = themeName;
+    this._mode  = theme.mode;
+    localStorage.setItem('dorkforge_theme', themeName);
+    localStorage.setItem('dorkforge_mode',  theme.mode);
+    document.dispatchEvent(new CustomEvent('themeChanged', { detail: theme }));
+    this._syncUI();
+    setTimeout(() => document.body?.classList.remove('theme-transitioning'), 420);
+  }
+
+  setMode(mode) {
+    this._mode = mode;
+    localStorage.setItem('dorkforge_mode', mode);
+    const current = THEMES.find(t => t.name === this._theme);
+    if (!current || current.mode !== mode) {
+      const first = THEMES.find(t => t.mode === mode);
+      if (first) this.applyTheme(first.name);
+    } else {
+      this._syncThemeDropdown();
+    }
+  }
+
+  getCurrentTheme() {
+    return THEMES.find(t => t.name === this._theme) || THEMES[0];
+  }
+
+  getThemesByMode(mode) {
+    return THEMES.filter(t => t.mode === mode);
+  }
+
+  // ── Called in DOMContentLoaded to wire up Settings UI ──────────────
+  init() {
+    const modeEl  = document.getElementById('setting-mode');
+    const themeEl = document.getElementById('setting-theme');
+    if (modeEl) {
+      modeEl.value = this._mode;
+      modeEl.addEventListener('change', () => this.setMode(modeEl.value));
+    }
+    if (themeEl) {
+      this._syncThemeDropdown();
+      themeEl.addEventListener('change', () => this.applyTheme(themeEl.value));
+    }
+    this._syncPreviewStrip();
+    document.addEventListener('themeChanged', () => this._syncPreviewStrip());
+  }
+
+  _syncUI() {
+    const modeEl  = document.getElementById('setting-mode');
+    const themeEl = document.getElementById('setting-theme');
+    if (modeEl)  modeEl.value = this._mode;
+    this._syncThemeDropdown();
+    if (themeEl) themeEl.value = this._theme;
+    this._syncPreviewStrip();
+  }
+
+  _syncThemeDropdown() {
+    const themeEl = document.getElementById('setting-theme');
+    if (!themeEl) return;
+    const list = this.getThemesByMode(this._mode);
+    themeEl.innerHTML = list.map(t =>
+      `<option value="${t.name}">${t.label}</option>`
+    ).join('');
+    themeEl.value = this._theme;
+  }
+
+  _syncPreviewStrip() {
+    const strip = document.getElementById('theme-preview-strip');
+    if (!strip) return;
+    const t  = this.getCurrentTheme();
+    const v  = t.vars;
+    const slots = [
+      { key: '--bg-primary',      label: 'bg' },
+      { key: '--color-primary',   label: 'primary' },
+      { key: '--color-secondary', label: 'secondary' },
+      { key: '--color-danger',    label: 'danger' },
+      { key: '--bg-secondary',    label: 'panel' },
+    ];
+    strip.innerHTML = slots.map(s => `
+      <div class="tdot-wrap">
+        <div class="tdot" style="background:${v[s.key]};border-color:${v['--border-color']}"></div>
+        <div class="tdot-lbl">${s.label}</div>
+      </div>`).join('');
+  }
+}
+
+// Instantiate at top-level — runs synchronously before DOMContentLoaded
+const themeEngine = new ThemeEngine();
+
+// ══════════════════════════════════════════════════════════════
 // OPERATORS CONFIG
 // key → { label, syntax, engines[], description, placeholder }
 // syntax uses {value} as the substitution token
@@ -3715,6 +3975,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTabs();
   initSettings();
   initExport();
+  themeEngine.init();
 
   window.builder = new Builder();
   console.log('[DorkForge] preview element:', document.getElementById('query-preview'));

@@ -7,22 +7,49 @@
 
 /* ── Design tokens ─────────────────────────────────────────── */
 :root {
-  --bg:          #0a0a0a;
-  --amber:       #f59e0b;
-  --amber-dim:   rgba(245, 158, 11, 0.3);
-  --amber-faint: rgba(245, 158, 11, 0.08);
-  --green:       #84cc16;
-  --red:         #ef4444;
-  --text:        #e5e7eb;
-  --text-dim:    #6b7280;
-  --border:      rgba(245, 158, 11, 0.3);
-  --panel-bg:    #0f0f0f;
-  --inset-bg:    #060606;
-  --topbar-h:    40px;
-  --font:        'JetBrains Mono', 'Courier New', Courier, monospace;
-  --glow-amber:  0 0 8px var(--amber);
-  --glow-green:  0 0 8px var(--green);
-  --glow-red:    0 0 8px var(--red);
+  /* ── Core theme variables — overridden per-theme by ThemeEngine ── */
+  /* Defaults: Hacker Terminal (dark) */
+  --bg-primary:       #0a0a0a;
+  --bg-secondary:     #111111;
+  --bg-tertiary:      #0d0d0d;
+  --color-primary:    #f59e0b;
+  --color-secondary:  #84cc16;
+  --color-danger:     #ef4444;
+  --color-dim:        #6b7280;
+  --color-text:       #e5e7eb;
+  --border-color:     rgba(245,158,11,0.3);
+  --border-bright:    rgba(245,158,11,0.7);
+  --glow:             0 0 8px rgba(245,158,11,0.4);
+  --scanline-color:   rgba(245,158,11,0.03);
+  --cursor-color:     #f59e0b;
+
+  /* ── Extended theme variables ── */
+  --color-on-primary: #000000;          /* text on primary-colored elements */
+  --color-on-danger:  #ffffff;          /* text on danger-colored elements */
+  --overlay-bg:       rgba(0,0,0,0.72); /* modal/drawer overlay */
+  --scanline-stripe:  rgba(0,0,0,0.18); /* CRT dark-band stripe */
+  --bg-inset:         #1a1a1a;          /* deeper nested backgrounds */
+  --bg-highlight:     rgba(255,255,255,0.04); /* subtle hover highlight */
+
+  /* ── Backward-compat aliases (existing CSS uses these) ── */
+  --bg:          var(--bg-primary);
+  --panel-bg:    var(--bg-secondary);
+  --inset-bg:    var(--bg-tertiary);
+  --amber:       var(--color-primary);
+  --green:       var(--color-secondary);
+  --red:         var(--color-danger);
+  --text-dim:    var(--color-dim);
+  --text:        var(--color-text);
+  --border:      var(--border-color);
+  --amber-dim:   var(--border-color);
+  --amber-faint: color-mix(in srgb, var(--color-primary) 8%, transparent);
+
+  /* ── Non-color structural variables ── */
+  --topbar-h:   40px;
+  --font:       'JetBrains Mono', 'Courier New', Courier, monospace;
+  --glow-amber: var(--glow);
+  --glow-green: 0 0 8px var(--color-secondary);
+  --glow-red:   0 0 8px var(--color-danger);
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
@@ -45,8 +72,8 @@ body::before {
     to bottom,
     transparent 0px,
     transparent 2px,
-    rgba(0, 0, 0, 0.18) 2px,
-    rgba(0, 0, 0, 0.18) 4px
+    var(--scanline-stripe) 2px,
+    var(--scanline-stripe) 4px
   );
 }
 
@@ -219,7 +246,7 @@ html, body {
 
 .btn:hover {
   background: var(--amber);
-  color: #000;
+  color: var(--color-on-primary);
   box-shadow: var(--glow-amber);
 }
 
@@ -254,7 +281,7 @@ html, body {
 
 .btn-add:hover {
   background: var(--green);
-  color: #000;
+  color: var(--color-on-primary);
   box-shadow: var(--glow-green);
 }
 
@@ -266,7 +293,7 @@ html, body {
 
 .btn-danger-outline:hover {
   background: var(--red);
-  color: #fff;
+  color: var(--color-on-danger);
   box-shadow: var(--glow-red);
 }
 
@@ -281,7 +308,7 @@ html, body {
   padding: 10px;
   margin-top: 16px;
   background: var(--amber);
-  color: #000;
+  color: var(--color-on-primary);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.2em;
@@ -291,9 +318,9 @@ html, body {
 }
 
 .btn-launch:hover {
-  background: #fbbf24;
-  box-shadow: 0 0 16px var(--amber);
-  color: #000;
+  background: var(--color-primary);
+  box-shadow: 0 0 16px var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 /* Export button */
@@ -544,7 +571,7 @@ select:disabled {
 
 .operator-row-remove:hover {
   background: var(--red);
-  color: #fff;
+  color: var(--color-on-danger);
   box-shadow: var(--glow-red);
 }
 
@@ -600,7 +627,7 @@ select:disabled {
   gap: 8px;
   font-size: 10px;
   color: var(--amber);
-  background: rgba(245, 158, 11, 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   border: 1px solid var(--amber-dim);
   padding: 6px 10px;
   margin-bottom: 4px;
@@ -702,7 +729,7 @@ select:disabled {
 }
 
 .card-header {
-  background: rgba(245, 158, 11, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   border-bottom: 1px solid var(--border);
   padding: 8px 12px;
   font-size: 11px;
@@ -728,7 +755,7 @@ select:disabled {
   background: var(--inset-bg);
   padding: 6px 8px;
   word-break: break-all;
-  border: 1px solid rgba(132, 204, 22, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-secondary) 20%, transparent);
 }
 
 .card-desc {
@@ -792,7 +819,7 @@ select:disabled {
   font-size: 10px;
   letter-spacing: 0.15em;
   font-weight: 700;
-  background: rgba(245, 158, 11, 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -863,7 +890,7 @@ select:disabled {
 }
 
 .export-card-header {
-  background: rgba(245, 158, 11, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   border-bottom: 1px solid var(--border);
   padding: 8px 14px;
   font-size: 11px;
@@ -987,7 +1014,7 @@ select:disabled {
 /* Selection color */
 ::selection {
   background: var(--amber);
-  color: #000;
+  color: var(--color-on-primary);
 }
 
 /* Focus-visible ring for keyboard nav (non-button elements) */
@@ -1035,7 +1062,7 @@ select:disabled {
 .operator-row.drag-over {
   border-color: var(--green);
   box-shadow: var(--glow-green);
-  background: rgba(132, 204, 22, 0.05);
+  background: color-mix(in srgb, var(--color-secondary) 5%, transparent);
 }
 
 /* Drag handle cursor on the row itself */
@@ -1073,14 +1100,14 @@ select:disabled {
 
 .launch-log-ok {
   color: var(--green);
-  border-color: rgba(132, 204, 22, 0.3);
-  background: rgba(132, 204, 22, 0.05);
+  border-color: color-mix(in srgb, var(--color-secondary) 30%, transparent);
+  background: color-mix(in srgb, var(--color-secondary) 5%, transparent);
 }
 
 .launch-log-error {
   color: var(--red);
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.05);
+  border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 5%, transparent);
 }
 
 /* ============================================================
@@ -1089,7 +1116,7 @@ select:disabled {
    ============================================================ */
 .tps-form {
   border: 1px solid var(--amber-dim);
-  background: rgba(245, 158, 11, 0.04);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
   padding: 10px 12px;
   margin-top: 10px;
   flex-shrink: 0;
@@ -1205,7 +1232,7 @@ select:disabled {
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-highlight);
   border: 1px solid var(--border);
   padding: 1px 5px;
   flex-shrink: 0;
@@ -1483,7 +1510,7 @@ select:disabled {
     transition: background 0.15s;
   }
   .operator-row.swipe-delete-ready {
-    background: rgba(239, 68, 68, 0.14);
+    background: color-mix(in srgb, var(--color-danger) 14%, transparent);
     border-color: var(--red);
     box-shadow: inset 0 0 0 1px var(--red);
   }
@@ -1636,14 +1663,14 @@ select:disabled {
   .bottom-sheet-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
+    background: var(--overlay-bg);
     z-index: 9000;
     display: flex;
     align-items: flex-end;
   }
 
   .bottom-sheet {
-    background: #111;
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-bottom: none;
     /* UX exception to no-border-radius rule: mobile sheet needs rounded top */
@@ -1673,17 +1700,17 @@ select:disabled {
   .bottom-sheet-confirm:hover,
   .bottom-sheet-confirm:active {
     background: var(--red);
-    color: #fff;
+    color: var(--color-on-danger);
     box-shadow: var(--glow-red);
   }
 
   .bottom-sheet-cancel { min-height: 48px; width: 100%; }
 
   /* ── Hover → also :active on mobile (no hover available) ──────── */
-  .btn:active         { background: var(--amber); color: #000; box-shadow: var(--glow-amber); }
-  .btn-add:active     { background: var(--green);  color: #000; box-shadow: var(--glow-green); }
+  .btn:active         { background: var(--amber); color: var(--color-on-primary); box-shadow: var(--glow-amber); }
+  .btn-add:active     { background: var(--green);  color: var(--color-on-primary); box-shadow: var(--glow-green); }
   .btn-launch:active  { filter: brightness(0.9); }
-  .bottom-sheet-confirm:active { background: var(--red); color: #fff; }
+  .bottom-sheet-confirm:active { background: var(--red); color: var(--color-on-danger); }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1787,14 +1814,14 @@ select:disabled {
 
 .nav-item:hover {
   color: var(--amber);
-  background: rgba(255, 176, 0, 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   border-left-color: var(--amber-dim);
 }
 
 .nav-item-active {
   color: var(--amber);
   border-left-color: var(--amber);
-  background: rgba(255, 176, 0, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .nav-item-label { pointer-events: none; }
@@ -1851,13 +1878,13 @@ select:disabled {
 .engine-toggle-rich:hover {
   border-color: var(--border);
   border-left-color: var(--amber-dim);
-  background: rgba(255, 176, 0, 0.04);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
 }
 
 /* Amber left border when checked */
 .engine-toggle-rich:has(input:checked) {
   border-left-color: var(--amber);
-  background: rgba(255, 176, 0, 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
 .engine-toggle-rich input[type="checkbox"] {
@@ -1968,13 +1995,13 @@ select:disabled {
 .card-badge-generic {
   color: var(--amber);
   border-color: var(--amber-dim);
-  background: rgba(255, 176, 0, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .card-badge-site {
   color: var(--green);
   border-color: var(--green);
-  background: rgba(0, 255, 128, 0.06);
+  background: color-mix(in srgb, var(--color-secondary) 6%, transparent);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2012,7 +2039,7 @@ select:disabled {
 .subcat-btn-active {
   color: var(--amber);
   border-color: var(--amber);
-  background: rgba(255, 176, 0, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 @media (max-width: 767px) {
@@ -2037,7 +2064,7 @@ select:disabled {
 }
 
 .preview-placeholder {
-  color: #6b7280;
+  color: var(--color-dim);
   font-style: normal;
 }
 
@@ -2067,8 +2094,8 @@ select:disabled {
   width: 100%;
   padding: 12px 16px;
   background: transparent;
-  border: 1px solid #84cc16;
-  color: #84cc16;
+  border: 1px solid var(--color-secondary);
+  color: var(--color-secondary);
   font-family: var(--font);
   font-size: 0.72rem;
   font-weight: 700;
@@ -2080,8 +2107,8 @@ select:disabled {
 }
 
 .btn-wizard:hover {
-  background: rgba(132, 204, 22, 0.08);
-  box-shadow: 0 0 14px rgba(132, 204, 22, 0.28);
+  background: color-mix(in srgb, var(--color-secondary) 8%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-secondary) 28%, transparent);
 }
 
 .wz-label-short { display: none; }
@@ -2105,7 +2132,7 @@ select:disabled {
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--overlay-bg);
   display: none;
   justify-content: flex-end;
   align-items: stretch;
@@ -2115,7 +2142,7 @@ select:disabled {
 
 #wizard-panel {
   width: 420px;
-  background: #111;
+  background: var(--bg-secondary);
   border-left: 4px solid var(--amber);
   display: flex;
   flex-direction: column;
@@ -2250,13 +2277,13 @@ select:disabled {
 
 .wz-option-card:hover {
   border-left-color: var(--amber-dim);
-  background: rgba(255, 176, 0, 0.04);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
 }
 
 .wz-option-card.wz-selected {
   border-color: var(--amber);
   border-left-color: var(--amber);
-  background: rgba(255, 176, 0, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .wz-option-icon { font-size: 1.35rem; flex-shrink: 0; }
@@ -2311,7 +2338,7 @@ select:disabled {
 .wz-chip.wz-chip-on {
   color: var(--amber);
   border-color: var(--amber);
-  background: rgba(255, 176, 0, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 /* ── Step 3: fields ─────────────────────────────────────────── */
@@ -2391,14 +2418,14 @@ select:disabled {
 }
 
 .wz-btn-next:disabled { opacity: 0.35; cursor: not-allowed; }
-.wz-btn-next:not(:disabled):hover { background: rgba(255, 176, 0, 0.1); }
+.wz-btn-next:not(:disabled):hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 
 .wz-btn-build {
   width: 100%;
   padding: 13px;
   background: var(--amber);
   border: none;
-  color: #000;
+  color: var(--color-on-primary);
   font-family: var(--font);
   font-size: 0.72rem;
   font-weight: 800;
@@ -2417,9 +2444,9 @@ select:disabled {
   left: 50%;
   transform: translateX(-50%);
   z-index: 600;
-  background: #1a2e05;
-  border: 1px solid #84cc16;
-  color: #84cc16;
+  background: color-mix(in srgb, var(--color-secondary) 15%, var(--bg-primary));
+  border: 1px solid var(--color-secondary);
+  color: var(--color-secondary);
   padding: 8px 20px;
   font-family: var(--font);
   font-size: 0.68rem;
@@ -2473,9 +2500,9 @@ select:disabled {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  background: rgba(245, 158, 11, 0.06) !important;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
   border: 2px solid red !important; /* TEMP DEBUG — remove in follow-up */
-  border-left: 3px solid #f59e0b !important;
+  border-left: 3px solid var(--color-primary) !important;
   padding: 12px 16px !important;
   min-height: 120px !important;
   height: auto !important;
@@ -2484,7 +2511,7 @@ select:disabled {
   overflow-x: hidden !important;
   white-space: pre-wrap !important;
   word-break: break-all !important;
-  color: #f59e0b !important;
+  color: var(--color-primary) !important;
   font-family: 'JetBrains Mono', 'Courier New', Courier, monospace !important;
   font-size: 14px !important;
   line-height: 1.6 !important;
@@ -2493,14 +2520,14 @@ select:disabled {
 }
 
 #query-preview .preview-placeholder {
-  color: #6b7280 !important;
+  color: var(--color-dim) !important;
   font-style: normal !important;
 }
 
 #query-preview .preview-placeholder::after {
   content: '_';
   animation: blink-cursor 1s step-end infinite;
-  color: #6b7280;
+  color: var(--color-dim);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2531,7 +2558,7 @@ select:disabled {
 }
 
 .op-tooltip-panel {
-  background: #111;
+  background: var(--bg-secondary);
   border: 1px solid var(--amber);
   border-left: 3px solid var(--amber);
   padding: 10px 12px;
@@ -2645,7 +2672,7 @@ select:disabled {
 .card-explain {
   border-top: 1px solid var(--border);
   padding: 10px 12px;
-  background: rgba(245, 158, 11, 0.03);
+  background: color-mix(in srgb, var(--color-primary) 3%, transparent);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2659,8 +2686,8 @@ select:disabled {
   gap: 6px;
   font-size: 0.62rem;
   font-weight: 700;
-  color: #ef4444;
-  border: 1px solid #ef4444;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
   padding: 3px 8px;
   letter-spacing: 0.06em;
   width: fit-content;
@@ -2704,7 +2731,7 @@ select:disabled {
   position: fixed;
   inset: 0;
   z-index: 900;
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--overlay-bg);
   display: none;
   align-items: center;
   justify-content: center;
@@ -2712,7 +2739,7 @@ select:disabled {
 }
 
 #onboard-modal {
-  background: #111;
+  background: var(--bg-secondary);
   border: 1px solid var(--amber);
   max-width: 520px;
   width: 100%;
@@ -2793,7 +2820,7 @@ select:disabled {
   padding: 12px;
   background: var(--amber);
   border: none;
-  color: #000;
+  color: var(--color-on-primary);
   font-family: var(--font);
   font-size: 0.72rem;
   font-weight: 800;
@@ -2818,7 +2845,7 @@ select:disabled {
   transition: background 0.15s;
 }
 
-.onb-btn-skip:hover { background: rgba(255, 176, 0, 0.08); }
+.onb-btn-skip:hover { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
 
 @media (max-width: 480px) {
   #onboard-modal { padding: 20px; }
@@ -2839,7 +2866,7 @@ select:disabled {
 .tour-highlight {
   position: relative;
   z-index: 850 !important;
-  box-shadow: 0 0 0 4px #f59e0b, 0 0 0 9999px rgba(0, 0, 0, 0.72) !important;
+  box-shadow: 0 0 0 4px var(--color-primary), 0 0 0 9999px var(--overlay-bg) !important;
 }
 
 .tour-tooltip {
@@ -2848,7 +2875,7 @@ select:disabled {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 860;
-  background: #111;
+  background: var(--bg-secondary);
   border: 1px solid var(--amber);
   border-left: 3px solid var(--amber);
   padding: 16px;
@@ -2916,7 +2943,7 @@ select:disabled {
   position: fixed;
   inset: 0;
   z-index: 700;
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2926,7 +2953,7 @@ select:disabled {
 #hotkey-overlay[hidden] { display: none !important; }
 
 #hotkey-modal {
-  background: #111;
+  background: var(--bg-secondary);
   border: 1px solid var(--amber);
   max-width: 420px;
   width: 100%;
@@ -3034,8 +3061,8 @@ select:disabled {
 .sm-track {
   width: 100%;
   height: 8px;
-  background: #1a1a1a;
-  border: 1px solid rgba(245,158,11,0.15);
+  background: var(--bg-inset);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
   position: relative;
   overflow: hidden;
   margin-bottom: 10px;
@@ -3044,7 +3071,7 @@ select:disabled {
 .sm-fill {
   height: 100%;
   width: 0%;
-  background: #6b7280;
+  background: var(--color-dim);
   transition: width 0.4s ease, background-color 0.3s ease;
 }
 
@@ -3089,7 +3116,7 @@ select:disabled {
   position: fixed;
   inset: 0;
   z-index: 10001;
-  background: #0a0a0a;
+  background: var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3109,7 +3136,7 @@ select:disabled {
 #verify-panel {
   width: 100%;
   max-width: 560px;
-  background: #111;
+  background: var(--bg-secondary);
   border: 1px solid var(--amber);
   padding: 40px;
   margin: auto;
@@ -3166,8 +3193,8 @@ select:disabled {
 .vc-square {
   width: 32px;
   height: 32px;
-  background: #1a1a1a;
-  border: 1px solid rgba(245,158,11,0.15);
+  background: var(--bg-inset);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   font-family: var(--font);
@@ -3181,19 +3208,19 @@ select:disabled {
 .vc-square:hover { border-color: var(--amber-dim); }
 
 .vc-square-amber {
-  background: rgba(245,158,11,0.25);
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
   border-color: var(--amber);
 }
 
 .vc-square-done {
-  background: rgba(132,204,22,0.25) !important;
-  border-color: #84cc16 !important;
-  color: #84cc16 !important;
+  background: color-mix(in srgb, var(--color-secondary) 25%, transparent) !important;
+  border-color: var(--color-secondary) !important;
+  color: var(--color-secondary) !important;
 }
 
 .vc-square-error {
-  background: rgba(239,68,68,0.35) !important;
-  border-color: #ef4444 !important;
+  background: color-mix(in srgb, var(--color-danger) 35%, transparent) !important;
+  border-color: var(--color-danger) !important;
 }
 
 /* ── Challenge B: type code ──────────────────────────────── */
@@ -3203,7 +3230,7 @@ select:disabled {
   font-weight: 700;
   letter-spacing: 0.3em;
   padding: 12px 16px;
-  background: #0a0a0a;
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   text-align: center;
   user-select: none;
@@ -3215,7 +3242,7 @@ select:disabled {
   font-weight: 700;
   letter-spacing: 0.3em;
   padding: 10px 14px;
-  background: #0a0a0a;
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   color: var(--amber);
   width: 100%;
@@ -3228,7 +3255,7 @@ select:disabled {
 
 .vc-code-input.vc-shake {
   animation: vc-shake 0.5s ease;
-  border-color: #ef4444 !important;
+  border-color: var(--color-danger) !important;
 }
 
 @keyframes vc-shake {
@@ -3244,7 +3271,7 @@ select:disabled {
   position: relative;
   width: 100%;
   height: 48px;
-  background: #0a0a0a;
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   overflow: hidden;
   user-select: none;
@@ -3257,7 +3284,7 @@ select:disabled {
   top: 0;
   height: 100%;
   width: 0%;
-  background: rgba(245,158,11,0.2);
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
   transition: background 0.3s;
   pointer-events: none;
 }
@@ -3281,7 +3308,7 @@ select:disabled {
 
 .vc-drag-thumb::after {
   content: '⇔';
-  color: #000;
+  color: var(--color-on-primary);
   font-size: 1.1rem;
   font-weight: 700;
 }
@@ -3305,15 +3332,15 @@ select:disabled {
 .verify-human-ok {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #84cc16;
+  color: var(--color-secondary);
   font-family: var(--font);
   letter-spacing: 0.1em;
 }
 
 /* ── Ethics box ──────────────────────────────────────────── */
 .verify-ethics-box {
-  background: rgba(251,191,36,0.04);
-  border-left: 3px solid rgba(251,191,36,0.3);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+  border-left: 3px solid var(--border-color);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -3323,7 +3350,7 @@ select:disabled {
 .verify-ethics-box p,
 .verify-ethics-box li {
   font-size: 13px;
-  color: #e5e7eb;
+  color: var(--color-text);
   line-height: 1.8;
   font-family: var(--font);
 }
@@ -3371,14 +3398,14 @@ select:disabled {
   width: 18px;
   height: 18px;
   border: 1px solid var(--amber-dim);
-  background: #0a0a0a;
+  background: var(--bg-primary);
   position: relative;
   transition: border-color 0.2s, background 0.2s;
 }
 
 .verify-cb-wrap input:checked ~ .verify-cb-ui {
   border-color: var(--amber);
-  background: rgba(245,158,11,0.15);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .verify-cb-wrap input:checked ~ .verify-cb-ui::after {
@@ -3425,13 +3452,13 @@ select:disabled {
 .verify-enter-btn:not(:disabled) {
   background: var(--amber);
   border-color: var(--amber);
-  color: #000;
+  color: var(--color-on-primary);
   cursor: pointer;
-  box-shadow: 0 0 14px rgba(245,158,11,0.5);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .verify-enter-btn:not(:disabled):hover {
-  box-shadow: 0 0 24px rgba(245,158,11,0.7);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color-primary) 70%, transparent);
 }
 
 /* ── Footer note ─────────────────────────────────────────── */
@@ -3458,4 +3485,79 @@ select:disabled {
   .verify-ethics-box li { font-size: 12px; }
 
   .vc-code-display { font-size: 1.4rem; }
+}
+
+/* ============================================================
+   THEME SYSTEM
+   ============================================================ */
+
+/* ── Smooth transition during theme change ────────────────── */
+/* Added/removed by ThemeEngine around each applyTheme() call */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition:
+    background-color 300ms ease,
+    border-color     300ms ease,
+    color            200ms ease,
+    box-shadow       200ms ease !important;
+}
+
+/* ── Settings: select arrow wrapper ──────────────────────── */
+/* Hides the native browser arrow and draws a themed ▼ */
+.select-arrow-wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 220px;
+}
+
+.select-arrow-wrap::after {
+  content: '▼';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-primary);
+  font-size: 7px;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.select-arrow-wrap select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 28px;
+  width: 100%;
+}
+
+/* ── Theme preview strip ─────────────────────────────────── */
+#theme-preview-strip {
+  display: flex;
+  gap: 16px;
+  padding: 4px 0 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.tdot-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.tdot {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.tdot-lbl {
+  font-size: 10px;
+  color: var(--color-dim);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  font-family: var(--font);
 }
