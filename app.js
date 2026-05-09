@@ -1287,11 +1287,164 @@ function initSettings() {
 // EXPORT
 // ══════════════════════════════════════════════════════════════
 function initExport() {
+
+  // ── Shared helpers ───────────────────────────────────────────
+  function _buildShareURL() {
+    const q = window.builder?.buildQuery().trim() || '';
+    if (!q) return '';
+    return `${location.origin}${location.pathname}#q=${encodeURIComponent(q)}`;
+  }
+
+  function _confirmButton(el, message, duration) {
+    if (!el) return;
+    const orig = el.textContent;
+    el.textContent = message;
+    setTimeout(() => { el.textContent = orig; }, duration);
+  }
+
+  function _writeClipboard(text, btn, successMsg) {
+    const ok = () => _confirmButton(btn, successMsg, 2000);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => { _fallbackCopy(text); ok(); });
+    } else {
+      _fallbackCopy(text); ok();
+    }
+  }
+
+  function _fallbackCopy(text) {
+    const ta = Object.assign(document.createElement('textarea'), { value: text, style: 'position:fixed;opacity:0' });
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch {}
+    ta.remove();
+  }
+
+  // ── 1. QR CODE CARD ─────────────────────────────────────────
+  let _qrStale = true;
+
+  function _generateQR() {
+    const url       = _buildShareURL();
+    const container = document.getElementById('qr-container');
+    const noQuery   = document.getElementById('qr-no-query');
+    const wrap      = document.getElementById('qr-wrap');
+    const regenBtn  = document.getElementById('btn-qr-regen');
+    const urlPrev   = document.getElementById('qr-url-preview');
+    if (!container) return;
+
+    if (!url) {
+      if (noQuery) noQuery.hidden = false;
+      if (wrap)    wrap.hidden    = true;
+      if (regenBtn) regenBtn.hidden = true;
+      return;
+    }
+
+    if (noQuery) noQuery.hidden = true;
+    if (wrap)    wrap.hidden    = false;
+    if (regenBtn) regenBtn.hidden = false;
+
+    const cs         = getComputedStyle(document.documentElement);
+    const colorDark  = cs.getPropertyValue('--color-primary').trim() || '#f59e0b';
+    const colorLight = cs.getPropertyValue('--bg-primary').trim()    || '#0a0a0a';
+
+    container.innerHTML = '';
+
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(container, {
+        text: url,
+        width: 200,
+        height: 200,
+        colorDark,
+        colorLight,
+        correctLevel: QRCode.CorrectLevel.H,
+      });
+    } else {
+      container.innerHTML = '<span style="color:var(--color-dim);font-size:11px;letter-spacing:.06em">QR LIBRARY UNAVAILABLE</span>';
+    }
+
+    if (urlPrev) {
+      urlPrev.textContent = url.length > 60 ? url.slice(0, 60) + '…' : url;
+      urlPrev.title = url;
+    }
+
+    _qrStale = false;
+    if (regenBtn) regenBtn.textContent = '↻ REGENERATE';
+  }
+
+  document.getElementById('btn-qr-regen')?.addEventListener('click', () => {
+    _generateQR();
+    _confirmButton(document.getElementById('btn-qr-regen'), '✓ UPDATED', 1500);
+  });
+
+  // On theme change: regenerate if export tab is open, else mark stale
+  document.addEventListener('themeChanged', () => {
+    if (document.getElementById('panel-export')?.classList.contains('panel-active')) {
+      _generateQR();
+    } else {
+      _qrStale = true;
+    }
+  });
+
+  // ── 2. SHARE URL CARD ────────────────────────────────────────
+  function _updateShareURLPreview() {
+    const preview = document.getElementById('share-url-preview');
+    if (!preview) return;
+    const url = _buildShareURL();
+    if (!url) {
+      preview.textContent = 'NO QUERY BUILT YET';
+      preview.title = '';
+    } else {
+      preview.textContent = url.length > 60 ? url.slice(0, 60) + '…' : url;
+      preview.title = url;
+    }
+  }
+
+  document.getElementById('btn-export-url')?.addEventListener('click', () => {
+    const q   = window.builder?.buildQuery().trim() || '';
+    const url = _buildShareURL();
+    if (!url) return;
+    const btn = document.getElementById('btn-export-url');
+    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+      navigator.share({ title: 'DorkForge Query', text: q, url })
+        .catch(() => _writeClipboard(url, btn, '✓ COPIED'));
+    } else {
+      _writeClipboard(url, btn, '✓ COPIED');
+    }
+  });
+
+  // ── 3. COPY AS TXT CARD ──────────────────────────────────────
+  function _updateTxtPreview() {
+    const pre = document.getElementById('txt-preview');
+    if (!pre) return;
+    const history = HistoryStore.load();
+    if (!history.length) {
+      pre.textContent = 'NO HISTORY TO EXPORT YET';
+      return;
+    }
+    const preview = history.slice(0, 3).map(e => e.query).join('\n');
+    pre.textContent = preview + (history.length > 3 ? `\n… and ${history.length - 3} more` : '');
+  }
+
   document.getElementById('btn-export-txt')?.addEventListener('click', () => {
     const current = window.builder?.buildQuery().trim() || '';
     const lines   = [current, ...HistoryStore.load().map(e => e.query)].filter(Boolean);
-    _clipboardWrite(lines.join('\n'), 'btn-export-txt', 'COPIED!');
+    _writeClipboard(lines.join('\n'), document.getElementById('btn-export-txt'), '✓ COPIED');
   });
+
+  // ── 4. EXPORT AS JSON CARD ───────────────────────────────────
+  function _updateJsonCount() {
+    const el  = document.getElementById('json-count');
+    const btn = document.getElementById('btn-export-json');
+    if (!el) return;
+    const count = HistoryStore.load().length;
+    if (count === 0) {
+      el.textContent = 'Run searches to build your history';
+      el.className   = 'ec-big-count ec-count-zero';
+      if (btn) btn.disabled = true;
+    } else {
+      el.textContent = `${count} QUER${count === 1 ? 'Y' : 'IES'} IN HISTORY`;
+      el.className   = 'ec-big-count';
+      if (btn) btn.disabled = false;
+    }
+  }
 
   document.getElementById('btn-export-json')?.addEventListener('click', () => {
     const payload = {
@@ -1304,20 +1457,126 @@ function initExport() {
     const a    = Object.assign(document.createElement('a'), { href: url, download: `dorkforge-${Date.now()}.json` });
     a.click();
     URL.revokeObjectURL(url);
+    _confirmButton(document.getElementById('btn-export-json'), '✓ DOWNLOADING...', 1000);
   });
 
-  document.getElementById('btn-export-url')?.addEventListener('click', () => {
-    const q   = window.builder?.buildQuery().trim() || '';
-    const url = `${location.origin}${location.pathname}#q=${encodeURIComponent(q)}`;
-    // On mobile use native share sheet if available; fall back to clipboard
-    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
-      navigator.share({ title: 'DorkForge Query', text: q, url }).catch(() => {
-        _clipboardWrite(url, 'btn-export-url', 'COPIED!');
-      });
-    } else {
-      _clipboardWrite(url, 'btn-export-url', 'COPIED!');
+  // ── 5. IMPORT JSON CARD ──────────────────────────────────────
+  function _showImportFeedback(type, msg) {
+    const el = document.getElementById('import-feedback');
+    if (!el) return;
+    el.className = `import-feedback fb-${type}`;
+    el.textContent = msg;
+    el.hidden = false;
+    setTimeout(() => { el.hidden = true; }, 4000);
+  }
+
+  function importJSON(jsonString) {
+    try {
+      const data = JSON.parse(jsonString);
+      if (!data.history && !data.notebooks && !data.templates) throw new Error('No recognized data');
+
+      let imported = 0;
+      if (Array.isArray(data.history) && data.history.length) {
+        const existing = HistoryStore.load();
+        const seen     = new Set(existing.map(e => `${e.date}|${e.query}`));
+        const fresh    = data.history.filter(e => !seen.has(`${e.date}|${e.query}`));
+        HistoryStore.save([...fresh, ...existing].slice(0, 200));
+        renderHistory();
+        imported = fresh.length;
+      }
+
+      _showImportFeedback('success', `✓ IMPORTED ${imported} ENTR${imported === 1 ? 'Y' : 'IES'} SUCCESSFULLY`);
+      _updateJsonCount();
+      _updateTxtPreview();
+    } catch {
+      _showImportFeedback('error', '✗ INVALID JSON — CHECK FILE FORMAT');
     }
+  }
+
+  function _readFile(file) {
+    const textEl   = document.querySelector('#import-drop-zone .import-dz-text');
+    const origText = textEl?.textContent;
+    if (textEl) textEl.textContent = 'READING FILE...';
+    const reader = new FileReader();
+    reader.onload  = e => { importJSON(e.target.result); if (textEl) textEl.textContent = origText; };
+    reader.onerror = () => { _showImportFeedback('error', '✗ COULD NOT READ FILE'); if (textEl) textEl.textContent = origText; };
+    reader.readAsText(file);
+  }
+
+  const dz        = document.getElementById('import-drop-zone');
+  const fileInput = document.getElementById('import-file-input');
+
+  dz?.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz?.addEventListener('dragleave', ()  => dz.classList.remove('drag-over'));
+  dz?.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    const file = e.dataTransfer?.files[0];
+    if (file) _readFile(file);
   });
+
+  fileInput?.addEventListener('change', () => {
+    if (fileInput.files[0]) _readFile(fileInput.files[0]);
+    fileInput.value = '';
+  });
+
+  const pasteToggle = document.getElementById('import-paste-toggle');
+  const pasteArea   = document.getElementById('import-paste-area');
+  pasteToggle?.addEventListener('click', () => {
+    const wasHidden = pasteArea?.hidden;
+    if (pasteArea) pasteArea.hidden = !wasHidden;
+    if (pasteToggle) pasteToggle.textContent = wasHidden ? 'OR PASTE JSON DIRECTLY ▲' : 'OR PASTE JSON DIRECTLY ▼';
+  });
+
+  document.getElementById('btn-import-text')?.addEventListener('click', () => {
+    const text = document.getElementById('import-textarea')?.value.trim();
+    if (text) importJSON(text);
+  });
+
+  // ── Tab activation + Builder change observation ──────────────
+  // MutationObserver on query-preview detects Builder operator changes
+  const previewEl = document.getElementById('query-preview');
+  if (previewEl) {
+    new MutationObserver(() => {
+      if (!document.getElementById('panel-export')?.classList.contains('panel-active')) return;
+      _updateShareURLPreview();
+      _updateTxtPreview();
+      _updateJsonCount();
+      // Mark QR stale if a query exists and QR is already showing
+      const regenBtn = document.getElementById('btn-qr-regen');
+      if (regenBtn && !regenBtn.hidden && !regenBtn.textContent.includes('•')) {
+        _qrStale = true;
+        regenBtn.textContent = '↻ REGENERATE •';
+      }
+    }).observe(previewEl, { childList: true, subtree: true, characterData: true });
+  }
+
+  // MutationObserver on panel-export class changes (tab open/close)
+  const exportPanel = document.getElementById('panel-export');
+  if (exportPanel) {
+    new MutationObserver(() => {
+      if (!exportPanel.classList.contains('panel-active')) return;
+      _updateShareURLPreview();
+      _updateTxtPreview();
+      _updateJsonCount();
+      // Regenerate QR on tab open if stale or never generated
+      const container = document.getElementById('qr-container');
+      if (_qrStale || !container?.children.length) _generateQR();
+      // Empty-state hint
+      const hasQuery   = !!(window.builder?.buildQuery().trim());
+      const hasHistory = HistoryStore.load().length > 0;
+      const hint = document.getElementById('export-hint');
+      if (hint) hint.hidden = hasQuery || hasHistory;
+    }).observe(exportPanel, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Go to Builder button
+  document.getElementById('btn-goto-builder')?.addEventListener('click', () => switchTab('builder'));
+
+  // Initial render (builder not ready yet, but previews will show correct empty states)
+  _updateShareURLPreview();
+  _updateTxtPreview();
+  _updateJsonCount();
 }
 
 function _clipboardWrite(text, btnId, flashMsg) {

@@ -44,6 +44,8 @@
     })();
   </script>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet" />
@@ -502,41 +504,66 @@
 
     <!-- ===================== EXPORT TAB ===================== -->
     <section id="panel-export" class="tab-panel" role="tabpanel" aria-labelledby="tab-export">
-      <div class="section-header">
-        <span class="section-title">EXPORT</span>
-        <span class="section-line"></span>
+
+      <!-- Empty-state hint: shown only when no query AND no history -->
+      <div id="export-hint" class="export-hint" hidden>
+        <span class="export-hint-msg">START BY BUILDING A QUERY IN THE BUILDER TAB</span>
+        <button id="btn-goto-builder" class="btn btn-sm">GO TO BUILDER</button>
       </div>
 
-      <div class="export-grid">
-
-        <div class="export-card">
-          <div class="export-card-header">COPY AS TXT</div>
-          <div class="export-card-body">
-            Export the current query and all history entries as plain text, one query per line.
-          </div>
-          <!-- JS: id="btn-export-txt" click → exportTxt() -->
-          <button id="btn-export-txt" class="btn btn-export">COPY TXT</button>
+      <!-- 1. QR SHARE CODE ──────────────────────────────────────── -->
+      <div class="ec" id="ec-qr">
+        <div class="ec-header">QR SHARE CODE</div>
+        <div class="ec-sub">Generate a scannable QR code for your current Builder query. Anyone who scans it loads your exact dork configuration in DorkForge.</div>
+        <div id="qr-no-query" class="ec-dim-msg">BUILD A QUERY FIRST — add operators in the Builder tab</div>
+        <div id="qr-wrap" hidden>
+          <div id="qr-container" class="qr-container"></div>
+          <div id="qr-url-preview" class="ec-url-preview"></div>
         </div>
+        <button id="btn-qr-regen" class="ec-btn" hidden>↻ REGENERATE</button>
+      </div>
 
-        <div class="export-card">
-          <div class="export-card-header">EXPORT AS JSON</div>
-          <div class="export-card-body">
-            Download history and current query as a structured JSON file for archival or import.
-          </div>
-          <!-- JS: id="btn-export-json" click → exportJson() -->
-          <button id="btn-export-json" class="btn btn-export">DOWNLOAD JSON</button>
+      <!-- 2. COPY SHARE URL ─────────────────────────────────────── -->
+      <div class="ec" id="ec-share-url">
+        <div class="ec-header">COPY SHARE URL</div>
+        <div class="ec-sub">Encode the current query into a shareable URL fragment. No server required.</div>
+        <button id="btn-export-url" class="ec-btn">COPY URL</button>
+        <div id="share-url-preview" class="ec-url-preview">NO QUERY BUILT YET</div>
+        <div class="ec-note">This link loads your exact query in DorkForge — share it anywhere</div>
+      </div>
+
+      <!-- 3. COPY AS TXT ────────────────────────────────────────── -->
+      <div class="ec" id="ec-txt">
+        <div class="ec-header">COPY AS TXT</div>
+        <div class="ec-sub">Export the current query and all history entries as plain text, one query per line.</div>
+        <button id="btn-export-txt" class="ec-btn">COPY TXT</button>
+        <pre id="txt-preview" class="ec-pre">NO HISTORY TO EXPORT YET</pre>
+      </div>
+
+      <!-- 4. EXPORT AS JSON ─────────────────────────────────────── -->
+      <div class="ec" id="ec-json">
+        <div class="ec-header">EXPORT AS JSON</div>
+        <div class="ec-sub">Download history and current query as a structured JSON file for archival or import.</div>
+        <div id="json-count" class="ec-big-count ec-count-zero">Run searches to build your history</div>
+        <button id="btn-export-json" class="ec-btn" disabled>DOWNLOAD JSON</button>
+      </div>
+
+      <!-- 5. IMPORT JSON ────────────────────────────────────────── -->
+      <div class="ec" id="ec-import">
+        <div class="ec-header">IMPORT JSON</div>
+        <div class="ec-sub">Load a previously exported DorkForge JSON file to restore your history and saved queries.</div>
+        <div id="import-drop-zone" class="import-dz">
+          <span class="import-dz-text">DROP JSON FILE HERE OR CLICK TO BROWSE</span>
+          <input type="file" id="import-file-input" accept=".json">
         </div>
-
-        <div class="export-card">
-          <div class="export-card-header">COPY SHARE URL</div>
-          <div class="export-card-body">
-            Encode the current query into a shareable URL fragment. No server required.
-          </div>
-          <!-- JS: id="btn-export-url" click → copyShareUrl() -->
-          <button id="btn-export-url" class="btn btn-export">COPY URL</button>
+        <div id="import-paste-toggle" class="import-paste-toggle">OR PASTE JSON DIRECTLY ▼</div>
+        <div id="import-paste-area" class="import-paste-area" hidden>
+          <textarea id="import-textarea" class="import-textarea" placeholder="Paste exported JSON here..."></textarea>
+          <button id="btn-import-text" class="ec-btn">IMPORT FROM TEXT</button>
         </div>
+        <div id="import-feedback" class="import-feedback" hidden></div>
+      </div>
 
-      </div><!-- /export-grid -->
     </section><!-- /panel-export -->
 
 

@@ -862,54 +862,258 @@ select:disabled {
 }
 
 /* ============================================================
-   EXPORT TAB
+   EXPORT TAB — polished export card (ec) system
    ============================================================ */
-#panel-export.panel-active {
-  overflow-y: auto;
-}
 
-.export-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  padding-top: 4px;
-}
+/* Panel scroll */
+#panel-export.panel-active { overflow-y: auto; }
 
-.export-card {
-  border: 1px solid var(--border);
-  background: var(--panel-bg);
+/* Empty-state hint */
+.export-hint {
   display: flex;
-  flex-direction: column;
-  min-height: 160px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  border: 1px solid var(--border-color);
+  margin-bottom: 20px;
 }
 
-.export-card:hover {
-  border-color: var(--amber);
-  box-shadow: var(--glow-amber);
+.export-hint-msg {
+  flex: 1;
+  font-size: 11px;
+  color: var(--color-dim);
+  letter-spacing: 0.08em;
+  font-family: var(--font);
 }
 
-.export-card-header {
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 14px;
+/* ── Export card ─────────────────────────────────────────────── */
+.ec {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s;
+}
+
+.ec-state-success { border-color: var(--color-secondary) !important; }
+.ec-state-error   { border-color: var(--color-danger) !important; }
+
+/* Header */
+.ec-header {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.15em;
-  color: var(--amber);
+  color: var(--color-primary);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Subtext */
+.ec-sub {
+  font-size: 12px;
+  color: var(--color-dim);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  font-family: var(--font);
+}
+
+/* Action button */
+.ec-btn {
+  display: block;
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--color-primary);
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+  margin-bottom: 12px;
+}
+
+.ec-btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--bg-primary);
+}
+
+.ec-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* URL/text preview line */
+.ec-url-preview {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--color-dim);
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small note beneath card content */
+.ec-note {
+  font-size: 10px;
+  color: var(--color-dim);
+  opacity: 0.7;
+  line-height: 1.5;
+  font-family: var(--font);
+}
+
+/* Dim message (e.g. BUILD A QUERY FIRST) */
+.ec-dim-msg {
+  font-size: 11px;
+  color: var(--color-dim);
+  letter-spacing: 0.06em;
+  padding: 16px 0;
+  text-align: center;
+  font-family: var(--font);
+}
+
+/* TXT preview pre block */
+.ec-pre {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--color-dim);
+  max-height: 80px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 8px 0 0;
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  background: var(--bg-tertiary);
+}
+
+/* Big history count */
+.ec-big-count {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--color-primary);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 12px;
+  font-family: var(--font);
+}
+
+.ec-big-count.ec-count-zero {
+  font-size: 13px;
+  color: var(--color-dim);
+  font-weight: normal;
+  letter-spacing: 0.04em;
+}
+
+/* QR code centered container */
+.qr-container {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 12px;
+}
+
+/* ── Import drop zone ────────────────────────────────────────── */
+.import-dz {
+  position: relative;
+  border: 2px dashed var(--border-color);
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 12px;
+  user-select: none;
+}
+
+.import-dz-text {
+  font-size: 11px;
+  color: var(--color-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: var(--font);
+  pointer-events: none;
+}
+
+.import-dz input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.import-dz:hover,
+.import-dz.drag-over {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+/* Paste toggle */
+.import-paste-toggle {
+  font-size: 10px;
+  color: var(--color-dim);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  padding: 6px 0;
+  user-select: none;
+  transition: color 0.15s;
+  font-family: var(--font);
   text-transform: uppercase;
 }
 
-.export-card-body {
-  padding: 12px 14px;
+.import-paste-toggle:hover { color: var(--color-primary); }
+
+/* Paste expand area */
+.import-paste-area { margin-top: 8px; }
+
+.import-textarea {
+  display: block;
+  width: 100%;
+  height: 120px;
+  font-family: var(--font);
   font-size: 11px;
-  color: var(--text-dim);
-  line-height: 1.6;
-  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--color-text);
+  padding: 8px;
+  resize: vertical;
+  margin-bottom: 8px;
+  box-sizing: border-box;
 }
 
-.export-card .btn-export {
-  margin: 0 14px 14px;
+.import-textarea::placeholder { color: var(--color-dim); opacity: 0.6; }
+
+/* Import feedback */
+.import-feedback {
+  font-size: 11px;
+  font-family: var(--font);
+  letter-spacing: 0.06em;
+  padding: 10px 12px;
+  margin-top: 8px;
+  transition: opacity 0.2s;
+}
+
+.import-feedback.fb-success {
+  color: var(--color-secondary);
+  border: 1px solid var(--color-secondary);
+}
+
+.import-feedback.fb-error {
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
 }
 
 /* ============================================================
@@ -1654,13 +1858,18 @@ select:disabled {
   }
   .history-actions .btn { width: 100%; min-height: 44px; font-size: 12px; }
 
-  /* ── EXPORT: single column, big tap targets ──────────────────── */
-  .export-grid { grid-template-columns: 1fr; gap: 8px; }
-  .export-card .btn-export {
-    width: calc(100% - 28px);
-    min-height: 48px;
-    font-size: 13px;
-  }
+  /* ── EXPORT: full-width cards, big tap targets ───────────────── */
+  .ec { padding: 16px; }
+  .ec-btn { height: 48px; }
+  .ec-url-preview { font-size: 10px; white-space: normal; }
+  .ec-pre { font-size: 10px; max-height: 60px; }
+  .ec-big-count { font-size: 32px; }
+  .qr-container canvas,
+  .qr-container img { width: 160px !important; height: 160px !important; }
+  .import-dz { height: 64px; }
+  .import-dz-text { font-size: 10px; }
+  .import-textarea { height: 100px; font-size: 12px; }
+  .export-hint { flex-direction: column; align-items: flex-start; gap: 8px; }
 
   /* ── SETTINGS ────────────────────────────────────────────────── */
   .settings-list      { max-width: 100%; }
