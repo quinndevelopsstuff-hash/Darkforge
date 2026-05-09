@@ -167,6 +167,7 @@ html, body {
   letter-spacing: 0.08em;
   flex-shrink: 0;
   white-space: nowrap;
+  margin-right: 6px;
 }
 
 /* ============================================================
@@ -4569,4 +4570,29 @@ select:disabled {
 .query-built-banner.banner-visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ── Template tag badges ────────────────────────────────────── */
+.card-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-bottom: 6px;
+  vertical-align: middle;
+}
+
+.card-tag-surface {
+  background: rgba(217, 119, 6, 0.18);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.card-tag-us {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--text-dim);
+  border: 1px solid rgba(99, 102, 241, 0.2);
 }
