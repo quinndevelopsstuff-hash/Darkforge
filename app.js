@@ -1355,6 +1355,19 @@ function initSettings() {
     });
   }
 
+  // CRT scanline toggle
+  const elCrt = document.getElementById('setting-crt');
+  if (elCrt) {
+    const savedCrt = localStorage.getItem('dorkforge_crt') || 'enabled';
+    elCrt.value = savedCrt;
+    document.body.classList.toggle('crt-off', savedCrt === 'disabled');
+    elCrt.addEventListener('change', () => {
+      const val = elCrt.value;
+      localStorage.setItem('dorkforge_crt', val);
+      document.body.classList.toggle('crt-off', val === 'disabled');
+    });
+  }
+
   // Clear history — bottom-sheet on mobile, native confirm on desktop
   document.getElementById('btn-clear-history')?.addEventListener('click', () => {
     _mobileConfirm('Permanently clear all search history? This cannot be undone.', () => {

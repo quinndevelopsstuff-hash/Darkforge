@@ -76,6 +76,7 @@ body::before {
     var(--scanline-stripe) 4px
   );
 }
+body.crt-off::before { display: none; }
 
 /* ── Base ───────────────────────────────────────────────────── */
 html, body {
