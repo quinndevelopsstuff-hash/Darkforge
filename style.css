@@ -4788,12 +4788,23 @@ select:disabled {
   position: sticky;
   top: 0;
   z-index: 10;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: row;
   flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  height: 44px;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .tools-subnav::-webkit-scrollbar { display: none; }
+.tools-subnav .learn-subnav-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
 
 /* ── Scroll container ───────────────────────────────────────── */
 .tools-scroll {
@@ -5676,14 +5687,25 @@ select:disabled {
 
 .tool-hash-tabs {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 0;
   border-bottom: 1px solid var(--border);
   padding: 0 20px;
   background: var(--bg-secondary);
   overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  height: 44px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tool-hash-tabs::-webkit-scrollbar { display: none; }
 
 .tool-hash-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -5692,7 +5714,7 @@ select:disabled {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  padding: 12px 16px;
+  padding: 0 16px;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
@@ -6033,13 +6055,24 @@ select:disabled {
 
 .tool-img-tabs {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
   overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  height: 44px;
   padding: 0 20px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tool-img-tabs::-webkit-scrollbar { display: none; }
 
 .tool-img-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -6048,7 +6081,7 @@ select:disabled {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  padding: 12px 16px;
+  padding: 0 16px;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
@@ -6320,9 +6353,14 @@ select:disabled {
 /* Inner tab bar shared across all 4 sub-tools */
 .fd-tabs {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
   overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  height: 44px;
   -webkit-overflow-scrolling: touch;
   padding: 0 20px;
   flex-shrink: 0;
@@ -6331,6 +6369,9 @@ select:disabled {
 .fd-tabs::-webkit-scrollbar { display: none; }
 
 .fd-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -6339,7 +6380,7 @@ select:disabled {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  padding: 12px 16px;
+  padding: 0 16px;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;

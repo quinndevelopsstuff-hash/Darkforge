@@ -9363,27 +9363,38 @@ function _buildQrPanel(panel) {
   function _readQr(file) {
     result.hidden = false;
     result.innerHTML = `<div class="tool-loading">DECODING QR CODE<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
-    const img = new Image();
-    img.onload = () => {
-      canvas.width  = img.naturalWidth  || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      try {
-        const ZXing = window.ZXing;
-        if (!ZXing) throw new Error('ZXing library not loaded');
-        const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-        const binarizer       = new ZXing.HybridBinarizer(luminanceSource);
-        const bitmap          = new ZXing.BinaryBitmap(binarizer);
-        const reader          = new ZXing.MultiFormatReader();
-        const decoded         = reader.decode(bitmap);
-        _showResult(decoded.getText());
-      } catch(e) {
-        _showFail();
-      }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const w = img.naturalWidth  || img.width;
+          const h = img.naturalHeight || img.height;
+          canvas.width  = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const code = jsQR(imageData.data, w, h);
+          if (code) { _showResult(code.data); return; }
+          // Retry at 2× scale
+          const w2 = w * 2, h2 = h * 2;
+          canvas.width  = w2;
+          canvas.height = h2;
+          ctx.drawImage(img, 0, 0, w2, h2);
+          const imageData2 = ctx.getImageData(0, 0, w2, h2);
+          const code2 = jsQR(imageData2.data, w2, h2);
+          if (code2) { _showResult(code2.data); return; }
+          _showFail();
+        } catch(e) {
+          result.hidden = false;
+          result.innerHTML = `<div class="qr-fail">ERROR PROCESSING IMAGE</div><div class="qr-fail-tips">${_esc(e.message)}</div>`;
+        }
+      };
+      img.onerror = () => _showFail();
+      img.src = ev.target.result;
     };
-    img.onerror = () => _showFail();
-    img.src = URL.createObjectURL(file);
+    reader.readAsDataURL(file);
   }
 
   function _showFail() {
