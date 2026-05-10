@@ -6958,6 +6958,7 @@ function initTools() {
   _buildNetworkSection();
   _buildScrubberSection();
   _buildHashSection();
+  _buildFileDataSection();
 
   // True tab switching — one section visible at a time
   const TOOL_TAB_KEY = 'df_tool_tab';
@@ -8786,6 +8787,723 @@ function _buildHashCompare(panel) {
     HistoryStore.addTool('hash', match?'MATCH':'NO MATCH', [{ label:'HASH COMPARE: '+(match?'MATCH':'NO MATCH'), url:'#', desc:'' }]);
     renderHistory();
   });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOOL 6 — FILE & DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _buildFileDataSection() {
+  const sec = document.getElementById('tool-section-filedata');
+  if (!sec) return;
+
+  sec.innerHTML = `
+    <div class="tool-panel-hdr">
+      <span class="tool-panel-title">FILE &amp; DATA</span>
+      <span class="tool-panel-desc">Identify file types, view CSVs, format JSON, and read QR codes — all locally, nothing uploaded.</span>
+    </div>
+    <nav class="fd-tabs" aria-label="File and data tools">
+      <button class="fd-tab fd-tab-active" data-fdtab="filetype">FILE TYPE</button>
+      <button class="fd-tab" data-fdtab="csv">CSV VIEWER</button>
+      <button class="fd-tab" data-fdtab="json">JSON FORMATTER</button>
+      <button class="fd-tab" data-fdtab="qr">QR READER</button>
+    </nav>
+    <div id="fd-panel-filetype" class="fd-panel"></div>
+    <div id="fd-panel-csv"      class="fd-panel" hidden></div>
+    <div id="fd-panel-json"     class="fd-panel" hidden></div>
+    <div id="fd-panel-qr"       class="fd-panel" hidden></div>
+  `;
+
+  // Inner tab switching
+  const fdTabBtns = sec.querySelectorAll('[data-fdtab]');
+  const fdPanels  = {
+    filetype: document.getElementById('fd-panel-filetype'),
+    csv:      document.getElementById('fd-panel-csv'),
+    json:     document.getElementById('fd-panel-json'),
+    qr:       document.getElementById('fd-panel-qr'),
+  };
+  function _switchFdTab(id) {
+    fdTabBtns.forEach(b => b.classList.toggle('fd-tab-active', b.dataset.fdtab === id));
+    Object.keys(fdPanels).forEach(k => { fdPanels[k].hidden = k !== id; });
+  }
+  fdTabBtns.forEach(btn => btn.addEventListener('click', () => _switchFdTab(btn.dataset.fdtab)));
+
+  _buildFileTypePanel(fdPanels.filetype);
+  _buildCsvPanel(fdPanels.csv);
+  _buildJsonPanel(fdPanels.json);
+  _buildQrPanel(fdPanels.qr);
+}
+
+// ── Sub-tool A: File Type Identifier ─────────────────────────
+function _buildFileTypePanel(panel) {
+  panel.innerHTML = `
+    <div class="tool-sub-name">FILE TYPE IDENTIFIER</div>
+    <div class="tool-sub-desc">Identify the true file type from magic bytes, not the file extension. Useful for detecting renamed or disguised files.</div>
+    <div class="tool-local-badge" style="display:inline-block;margin:8px 0">LOCAL FILE — not uploaded anywhere</div>
+    <div class="tool-drop" id="ft-drop" tabindex="0">
+      DROP ANY FILE HERE OR CLICK TO BROWSE
+      <input type="file" id="ft-file-input" style="display:none;pointer-events:none;">
+    </div>
+    <div id="ft-result" hidden></div>
+  `;
+
+  const drop  = panel.querySelector('#ft-drop');
+  const input = panel.querySelector('#ft-file-input');
+  const result = panel.querySelector('#ft-result');
+
+  drop.addEventListener('click', () => input.click());
+  drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('tool-drop-hover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('tool-drop-hover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('tool-drop-hover');
+    if (e.dataTransfer.files[0]) _analyzeFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', () => { if (input.files[0]) _analyzeFile(input.files[0]); });
+
+  function _toHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  }
+  function _ext(name) { return (name.split('.').pop() || '').toLowerCase(); }
+
+  async function _analyzeFile(file) {
+    const buf  = await file.arrayBuffer();
+    const raw  = new Uint8Array(buf, 0, Math.min(16, buf.byteLength));
+    const hex  = Array.from(raw).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join('');
+    const ext  = _ext(file.name);
+
+    let detected = 'UNKNOWN';
+    let confidence = 'UNKNOWN';
+    let mimeHint   = '';
+
+    // ZIP / Office — peek inside if JSZip available
+    async function _checkZip() {
+      try {
+        const zip = await JSZip.loadAsync(buf);
+        if (zip.file('word/document.xml'))    return 'DOCX (Word Document)';
+        if (zip.file('xl/workbook.xml'))      return 'XLSX (Excel Spreadsheet)';
+        if (zip.file('ppt/presentation.xml')) return 'PPTX (PowerPoint Presentation)';
+        return 'ZIP Archive';
+      } catch { return 'ZIP Archive'; }
+    }
+
+    // Match signatures
+    if      (hex.startsWith('FFD8FF'))                 { detected = 'JPEG Image';                confidence = 'CONFIDENT'; mimeHint = 'jpg/jpeg'; }
+    else if (hex.startsWith('89504E47'))               { detected = 'PNG Image';                 confidence = 'CONFIDENT'; mimeHint = 'png'; }
+    else if (hex.startsWith('47494638'))               { detected = 'GIF Image';                 confidence = 'CONFIDENT'; mimeHint = 'gif'; }
+    else if (hex.startsWith('25504446'))               { detected = 'PDF Document';              confidence = 'CONFIDENT'; mimeHint = 'pdf'; }
+    else if (hex.startsWith('504B0304')) {
+      detected = await _checkZip();
+      confidence = 'CONFIDENT';
+      if (detected === 'ZIP Archive') mimeHint = 'zip';
+      else mimeHint = detected.split(' ')[0].toLowerCase();
+    }
+    else if (hex.startsWith('D0CF11E0'))               { detected = 'Legacy Office Document (DOC/XLS/PPT)'; confidence = 'CONFIDENT'; mimeHint = 'doc/xls/ppt'; }
+    else if (hex.startsWith('7F454C46'))               { detected = 'ELF Executable (Linux/Unix)';          confidence = 'CONFIDENT'; mimeHint = 'elf'; }
+    else if (hex.startsWith('4D5A'))                   { detected = 'Windows Executable (EXE/DLL)';         confidence = 'CONFIDENT'; mimeHint = 'exe/dll'; }
+    else if (hex.startsWith('1F8B'))                   { detected = 'GZIP Compressed Archive';             confidence = 'CONFIDENT'; mimeHint = 'gz'; }
+    else if (hex.startsWith('425A68'))                 { detected = 'BZIP2 Compressed Archive';            confidence = 'CONFIDENT'; mimeHint = 'bz2'; }
+    else if (hex.startsWith('377ABCAF'))               { detected = '7-ZIP Archive';                       confidence = 'CONFIDENT'; mimeHint = '7z'; }
+    else if (hex.startsWith('52617221'))               { detected = 'RAR Archive';                         confidence = 'CONFIDENT'; mimeHint = 'rar'; }
+    else if (hex.startsWith('000001BA') || hex.startsWith('000001B3')) { detected = 'MPEG Video';          confidence = 'CONFIDENT'; mimeHint = 'mpg/mpeg'; }
+    else if (hex.startsWith('667479706D703432') || hex.startsWith('66747970')) { detected = 'MP4 Video';   confidence = 'CONFIDENT'; mimeHint = 'mp4'; }
+    else if (hex.startsWith('4F676753'))               { detected = 'OGG Audio/Video';                     confidence = 'CONFIDENT'; mimeHint = 'ogg'; }
+    else if (hex.startsWith('494433') || hex.startsWith('FFFB'))  { detected = 'MP3 Audio';               confidence = 'CONFIDENT'; mimeHint = 'mp3'; }
+    else if (hex.startsWith('52494646')) {
+      const sub = hex.slice(16, 24);
+      if      (sub === '57415645') { detected = 'WAV Audio';  confidence = 'CONFIDENT'; mimeHint = 'wav'; }
+      else if (sub === '41564920') { detected = 'AVI Video';  confidence = 'CONFIDENT'; mimeHint = 'avi'; }
+      else                         { detected = 'RIFF Container (WAV/AVI)'; confidence = 'CONFIDENT'; mimeHint = 'wav/avi'; }
+    }
+    else if (hex.startsWith('3C3F786D6C') || hex.startsWith('3C68746D6C')) { detected = hex.startsWith('3C68') ? 'HTML Document' : 'XML Document'; confidence = 'CONFIDENT'; mimeHint = hex.startsWith('3C68') ? 'html' : 'xml'; }
+    else if (hex.startsWith('7B') || hex.startsWith('5B'))                 { detected = 'JSON Data (likely)'; confidence = 'POSSIBLE'; mimeHint = 'json'; }
+    else if (hex.startsWith('23212F'))                                     { detected = 'Script with Shebang (shell/interpreter)'; confidence = 'CONFIDENT'; mimeHint = 'sh/script'; }
+    else {
+      // Try text detection
+      const printable = raw.every(b => (b >= 0x20 && b < 0x7f) || b === 0x09 || b === 0x0a || b === 0x0d);
+      if (printable) { detected = 'Plain Text or Script'; confidence = 'POSSIBLE'; mimeHint = 'txt'; }
+      else           { detected = 'UNKNOWN / Binary'; confidence = 'UNKNOWN'; }
+    }
+
+    const reportedExt = ext || '(none)';
+    const extMatch = mimeHint.split('/').some(m => m === ext) || ext === mimeHint;
+    const matchWarning = ext && !extMatch && mimeHint && confidence !== 'UNKNOWN';
+
+    const confClass = { CONFIDENT: 'ft-conf-confident', POSSIBLE: 'ft-conf-possible', UNKNOWN: 'ft-conf-unknown' }[confidence];
+
+    result.hidden = false;
+    result.innerHTML = `
+      <div class="ft-detected">${detected}</div>
+      <span class="ft-confidence ${confClass}">${confidence}</span>
+      <div class="ft-info-grid">
+        <span class="ft-info-label">FILE NAME</span><span class="ft-info-value">${file.name}</span>
+        <span class="ft-info-label">REPORTED EXT</span><span class="ft-info-value">.${reportedExt}</span>
+        <span class="ft-info-label">FILE SIZE</span><span class="ft-info-value">${(file.size/1024).toFixed(1)} KB</span>
+        <span class="ft-info-label">ACTUAL TYPE</span><span class="ft-info-value">${detected}</span>
+      </div>
+      ${matchWarning
+        ? `<div class="ft-mismatch">⚠ EXTENSION MISMATCH — file is .${ext} but content detected as ${detected.toUpperCase()}. This may be a renamed or disguised file.</div>`
+        : (ext && mimeHint && confidence !== 'UNKNOWN' ? `<div class="ft-match-ok">✓ Extension matches detected type</div>` : '')
+      }
+      <div class="ft-hex-label">FIRST 16 BYTES (HEX)</div>
+      <div class="ft-hex">${_toHex(raw)}</div>
+    `;
+
+    HistoryStore.addTool('filetype', file.name, [{ label: 'FILE TYPE SCAN: ' + detected, url: '#', desc: confidence }]);
+  }
+}
+
+// ── Sub-tool B: CSV Viewer ────────────────────────────────────
+function _buildCsvPanel(panel) {
+  panel.innerHTML = `
+    <div class="tool-sub-name">CSV VIEWER</div>
+    <div class="tool-sub-desc">Upload a CSV file and view it as a clean, searchable, sortable table. Nothing is uploaded anywhere.</div>
+    <div class="tool-local-badge" style="display:inline-block;margin:8px 0">LOCAL FILE — not uploaded anywhere</div>
+    <div class="tool-drop" id="csv-drop" tabindex="0">
+      DROP CSV OR TXT FILE HERE OR CLICK TO BROWSE
+      <input type="file" id="csv-file-input" accept=".csv,.txt" style="display:none;pointer-events:none;">
+    </div>
+    <div id="csv-warn" class="csv-warn" hidden></div>
+    <div id="csv-body" hidden>
+      <div class="csv-summary" id="csv-summary"></div>
+      <input type="text" class="csv-search" id="csv-search" placeholder="Search all columns…" autocomplete="off" spellcheck="false">
+      <div class="csv-table-wrap" id="csv-table-wrap"></div>
+      <button class="tool-btn tool-btn-sm" id="csv-export" style="margin-top:6px">EXPORT FILTERED CSV</button>
+    </div>
+  `;
+
+  const drop   = panel.querySelector('#csv-drop');
+  const input  = panel.querySelector('#csv-file-input');
+  const warn   = panel.querySelector('#csv-warn');
+  const body   = panel.querySelector('#csv-body');
+  const summary = panel.querySelector('#csv-summary');
+  const search = panel.querySelector('#csv-search');
+  const wrap   = panel.querySelector('#csv-table-wrap');
+  const exportBtn = panel.querySelector('#csv-export');
+
+  let _allRows = [], _headers = [], _sortCol = -1, _sortAsc = true, _fileName = '', _fileSize = 0;
+
+  drop.addEventListener('click', () => input.click());
+  drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('tool-drop-hover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('tool-drop-hover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('tool-drop-hover');
+    if (e.dataTransfer.files[0]) _loadCsv(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', () => { if (input.files[0]) _loadCsv(input.files[0]); });
+
+  function _parseCsv(text) {
+    const rows = [];
+    let i = 0, n = text.length;
+    while (i < n) {
+      const row = [];
+      while (i < n) {
+        if (text[i] === '"') {
+          i++; let field = '';
+          while (i < n) {
+            if (text[i] === '"') {
+              if (text[i+1] === '"') { field += '"'; i += 2; }
+              else { i++; break; }
+            } else { field += text[i++]; }
+          }
+          row.push(field);
+          if (i < n && text[i] === ',') i++;
+        } else {
+          let field = '';
+          while (i < n && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') field += text[i++];
+          row.push(field.trim());
+          if (i < n && text[i] === ',') i++;
+        }
+        if (i >= n || text[i] === '\n' || text[i] === '\r') break;
+      }
+      if (i < n && text[i] === '\r') i++;
+      if (i < n && text[i] === '\n') i++;
+      if (row.length > 0 && !(row.length === 1 && row[0] === '')) rows.push(row);
+    }
+    return rows;
+  }
+
+  function _loadCsv(file) {
+    _fileName = file.name; _fileSize = file.size;
+    if (file.size > 5 * 1024 * 1024) {
+      warn.hidden = false;
+      warn.textContent = '⚠ File is ' + (file.size/1024/1024).toFixed(1) + 'MB — large files may slow the browser. Processing anyway…';
+    } else { warn.hidden = true; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = _parseCsv(e.target.result);
+      if (!rows.length) return;
+      _headers = rows[0]; _allRows = rows.slice(1);
+      _sortCol = -1; _sortAsc = true;
+      _render('');
+      search.value = '';
+      body.hidden = false;
+    };
+    reader.readAsText(file);
+  }
+
+  function _colStats(colIdx) {
+    const vals = _allRows.map(r => r[colIdx] || '');
+    const unique = new Set(vals).size;
+    const empty  = vals.filter(v => !v.trim()).length;
+    const sample = [...new Set(vals.filter(v => v.trim()))].slice(0,3);
+    return { unique, empty, sample };
+  }
+
+  function _render(q) {
+    const ql = q.toLowerCase();
+    let rows = _allRows.filter(row => !q || row.some(c => c.toLowerCase().includes(ql)));
+    if (_sortCol >= 0) {
+      rows = [...rows].sort((a,b) => {
+        const av = (a[_sortCol]||'').toLowerCase(), bv = (b[_sortCol]||'').toLowerCase();
+        const an = parseFloat(av), bn = parseFloat(bv);
+        if (!isNaN(an) && !isNaN(bn)) return _sortAsc ? an-bn : bn-an;
+        return _sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+      });
+    }
+    summary.innerHTML = `<span><strong>${_allRows.length}</strong> rows</span><span><strong>${_headers.length}</strong> columns</span><span>${_fileName}</span><span>${(_fileSize/1024).toFixed(1)} KB</span>`;
+
+    function _hl(text) {
+      if (!q) return _esc(text);
+      const idx = text.toLowerCase().indexOf(ql);
+      if (idx < 0) return _esc(text);
+      return _esc(text.slice(0,idx)) + `<mark class="csv-highlight">${_esc(text.slice(idx,idx+q.length))}</mark>` + _esc(text.slice(idx+q.length));
+    }
+
+    const ths = _headers.map((h,ci) => {
+      const sortClass = _sortCol === ci ? (_sortAsc ? 'csv-sort-asc' : 'csv-sort-desc') : '';
+      return `<th class="${sortClass}" data-ci="${ci}" tabindex="0">${_esc(h)}</th>`;
+    }).join('');
+
+    const trs = rows.map((row,ri) => {
+      const altClass = ri % 2 === 1 ? 'csv-row-alt' : '';
+      const tds = _headers.map((_,ci) => `<td title="${_esc(row[ci]||'')}">${_hl(row[ci]||'')}</td>`).join('');
+      return `<tr class="${altClass}">${tds}</tr>`;
+    }).join('');
+
+    wrap.innerHTML = `<table class="csv-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+    _filteredRows = rows;
+
+    // Column tooltip on th hover
+    wrap.querySelectorAll('th').forEach(th => {
+      const ci = parseInt(th.dataset.ci);
+      let tip = null;
+      th.addEventListener('mouseenter', () => {
+        const st = _colStats(ci);
+        tip = document.createElement('div');
+        tip.className = 'csv-col-tooltip';
+        tip.innerHTML = `<div class="csv-col-tooltip-label">UNIQUE VALUES</div><strong>${st.unique}</strong><br><div class="csv-col-tooltip-label" style="margin-top:4px">EMPTY CELLS</div><strong>${st.empty}</strong><br><div class="csv-col-tooltip-label" style="margin-top:4px">SAMPLE</div>${st.sample.map(v => _esc(v)).join('<br>')}`;
+        th.style.position = 'relative';
+        th.appendChild(tip);
+      });
+      th.addEventListener('mouseleave', () => { if (tip) { tip.remove(); tip = null; } });
+      th.addEventListener('click', () => {
+        if (_sortCol === ci) _sortAsc = !_sortAsc;
+        else { _sortCol = ci; _sortAsc = true; }
+        _render(search.value);
+      });
+      th.addEventListener('keydown', e => { if (e.key === 'Enter') th.click(); });
+    });
+  }
+
+  let _filteredRows = [];
+  search.addEventListener('input', () => _render(search.value));
+
+  exportBtn.addEventListener('click', () => {
+    const rows = [_headers, ..._filteredRows];
+    const csv  = rows.map(r => r.map(c => (c.includes(',') || c.includes('"') || c.includes('\n')) ? `"${c.replace(/"/g,'""')}"` : c).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type:'text/csv' });
+    const a    = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'export.csv' });
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+}
+
+// ── Sub-tool C: JSON Formatter ────────────────────────────────
+function _buildJsonPanel(panel) {
+  panel.innerHTML = `
+    <div class="tool-sub-name">JSON FORMATTER</div>
+    <div class="tool-sub-desc">Paste or upload JSON to format, validate, and explore it.</div>
+    <div class="tool-local-badge" style="display:inline-block;margin:8px 0">LOCAL — not uploaded anywhere</div>
+    <div class="tool-drop" id="jf-drop" tabindex="0" style="margin-bottom:8px">
+      DROP JSON FILE HERE OR CLICK TO BROWSE
+      <input type="file" id="jf-file-input" accept=".json" style="display:none;pointer-events:none;">
+    </div>
+    <textarea class="jf-textarea" id="jf-input" placeholder="Or paste JSON here…" spellcheck="false" autocomplete="off"></textarea>
+    <div class="jf-actions">
+      <button class="tool-btn tool-btn-sm" id="jf-format">FORMAT</button>
+      <button class="tool-btn tool-btn-sm" id="jf-minify">MINIFY</button>
+      <button class="tool-btn tool-btn-sm" id="jf-validate">VALIDATE</button>
+      <button class="tool-btn tool-btn-sm" id="jf-clear">CLEAR</button>
+    </div>
+    <div id="jf-error" class="jf-error-box" hidden></div>
+    <div id="jf-valid-msg" style="font-family:var(--font);font-size:11px;color:#22c55e;margin-bottom:8px;display:none">✓ Valid JSON</div>
+    <div id="jf-output-section" hidden>
+      <div class="jf-output-wrap" id="jf-output-wrap">
+        <div class="jf-line-nums" id="jf-line-nums"></div>
+        <code class="jf-code" id="jf-code"></code>
+      </div>
+      <div class="jf-output-actions">
+        <button class="tool-btn tool-btn-sm" id="jf-copy">COPY OUTPUT</button>
+        <button class="tool-btn tool-btn-sm" id="jf-download">DOWNLOAD .json</button>
+      </div>
+      <div class="jf-stats" id="jf-stats"></div>
+      <div class="tool-sub-name" style="font-size:10px;margin-bottom:6px">TREE EXPLORER</div>
+      <div class="jf-tree" id="jf-tree"></div>
+    </div>
+  `;
+
+  const drop   = panel.querySelector('#jf-drop');
+  const fInput = panel.querySelector('#jf-file-input');
+  const ta     = panel.querySelector('#jf-input');
+  const errBox = panel.querySelector('#jf-error');
+  const validMsg = panel.querySelector('#jf-valid-msg');
+  const outSec = panel.querySelector('#jf-output-section');
+  const lineNums = panel.querySelector('#jf-line-nums');
+  const codeEl = panel.querySelector('#jf-code');
+  const statsEl = panel.querySelector('#jf-stats');
+  const treeEl = panel.querySelector('#jf-tree');
+
+  drop.addEventListener('click', () => fInput.click());
+  drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fInput.click(); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('tool-drop-hover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('tool-drop-hover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('tool-drop-hover');
+    if (e.dataTransfer.files[0]) { const r=new FileReader(); r.onload=ev=>{ ta.value=ev.target.result; _format(); }; r.readAsText(e.dataTransfer.files[0]); }
+  });
+  fInput.addEventListener('change', () => {
+    if (!fInput.files[0]) return;
+    const r=new FileReader(); r.onload=ev=>{ ta.value=ev.target.result; _format(); }; r.readAsText(fInput.files[0]);
+  });
+
+  panel.querySelector('#jf-format').addEventListener('click', _format);
+  panel.querySelector('#jf-minify').addEventListener('click', _minify);
+  panel.querySelector('#jf-validate').addEventListener('click', _validate);
+  panel.querySelector('#jf-clear').addEventListener('click', () => {
+    ta.value=''; ta.classList.remove('jf-error-line');
+    errBox.hidden=true; validMsg.style.display='none'; outSec.hidden=true;
+  });
+  panel.querySelector('#jf-copy').addEventListener('click', () => {
+    navigator.clipboard?.writeText(codeEl.textContent).catch(()=>{});
+    const btn = panel.querySelector('#jf-copy');
+    btn.textContent='COPIED'; setTimeout(()=>{ btn.textContent='COPY OUTPUT'; },1500);
+  });
+  panel.querySelector('#jf-download').addEventListener('click', () => {
+    const blob = new Blob([codeEl.textContent], {type:'application/json'});
+    const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'output.json'});
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  function _parse() {
+    try { return { ok: true, data: JSON.parse(ta.value.trim()) }; }
+    catch(e) { return { ok: false, err: e.message }; }
+  }
+
+  function _showError(msg) {
+    ta.classList.add('jf-error-line');
+    errBox.hidden = false; errBox.textContent = '✗ ' + msg;
+    validMsg.style.display = 'none'; outSec.hidden = true;
+  }
+
+  function _showOutput(obj, formatted) {
+    ta.classList.remove('jf-error-line');
+    errBox.hidden = true; validMsg.style.display = 'block';
+    const lines = formatted.split('\n');
+    lineNums.textContent = lines.map((_,i) => i+1).join('\n');
+    codeEl.innerHTML = _syntaxHighlight(formatted);
+    outSec.hidden = false;
+    statsEl.innerHTML = _jsonStats(obj);
+    _buildTree(treeEl, obj, true);
+  }
+
+  function _format() {
+    const r = _parse();
+    if (!r.ok) { _showError(r.err); return; }
+    _showOutput(r.data, JSON.stringify(r.data, null, 2));
+  }
+
+  function _minify() {
+    const r = _parse();
+    if (!r.ok) { _showError(r.err); return; }
+    _showOutput(r.data, JSON.stringify(r.data));
+  }
+
+  function _validate() {
+    const r = _parse();
+    if (!r.ok) { _showError(r.err); }
+    else { ta.classList.remove('jf-error-line'); errBox.hidden=true; validMsg.style.display='block'; outSec.hidden=true; }
+  }
+
+  function _syntaxHighlight(str) {
+    return str
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) return `<span class="jf-key">${match}</span>`;
+          return `<span class="jf-str">${match}</span>`;
+        }
+        if (/true|false/.test(match)) return `<span class="jf-bool">${match}</span>`;
+        if (/null/.test(match))       return `<span class="jf-null">${match}</span>`;
+        return `<span class="jf-num">${match}</span>`;
+      });
+  }
+
+  function _jsonStats(obj) {
+    let keys=0, depth=0, arrays=0, objects=0, values=0;
+    function walk(v, d) {
+      if (d>depth) depth=d;
+      if (Array.isArray(v)) {
+        arrays++; v.forEach(item=>walk(item,d+1));
+      } else if (v && typeof v==='object') {
+        objects++; Object.keys(v).forEach(k=>{ keys++; walk(v[k],d+1); });
+      } else { values++; }
+    }
+    walk(obj,0);
+    return `<span>TOTAL KEYS <strong>${keys}</strong></span><span>MAX DEPTH <strong>${depth}</strong></span><span>ARRAYS <strong>${arrays}</strong></span><span>OBJECTS <strong>${objects}</strong></span><span>VALUES <strong>${values}</strong></span>`;
+  }
+
+  function _buildTree(container, val, isRoot) {
+    container.innerHTML = '';
+    function _node(parent, key, value, collapsed) {
+      const nodeEl = document.createElement('div');
+      nodeEl.className = 'jf-tree-node' + (collapsed ? ' jf-tree-collapsed' : '');
+      parent.appendChild(nodeEl);
+      const isObj = value && typeof value === 'object';
+      const toggle = document.createElement('button');
+      toggle.className = 'jf-tree-toggle';
+      nodeEl.appendChild(toggle);
+
+      const arrow = document.createElement('span');
+      arrow.className = 'jf-tree-arrow';
+      toggle.appendChild(arrow);
+
+      if (key !== null) {
+        const kSpan = document.createElement('span');
+        kSpan.className = 'jf-tree-key';
+        kSpan.textContent = key + ': ';
+        toggle.appendChild(kSpan);
+      }
+
+      if (isObj) {
+        const isArr = Array.isArray(value);
+        const count = isArr ? value.length : Object.keys(value).length;
+        const typeBadge = document.createElement('span');
+        typeBadge.className = 'jf-tree-type';
+        typeBadge.textContent = isArr ? 'ARRAY' : 'OBJECT';
+        toggle.appendChild(typeBadge);
+        const dimSpan = document.createElement('span');
+        dimSpan.className = 'jf-tree-dim';
+        dimSpan.textContent = ' ' + (isArr ? count + ' items' : count + ' keys');
+        toggle.appendChild(dimSpan);
+        arrow.textContent = collapsed ? '▶' : '▼';
+
+        const children = document.createElement('div');
+        children.className = 'jf-tree-children';
+        nodeEl.appendChild(children);
+
+        if (isArr) {
+          value.forEach((item,i) => _node(children, i, item, true));
+        } else {
+          Object.keys(value).forEach(k => _node(children, k, value[k], true));
+        }
+
+        toggle.addEventListener('click', () => {
+          const coll = nodeEl.classList.toggle('jf-tree-collapsed');
+          arrow.textContent = coll ? '▶' : '▼';
+        });
+      } else {
+        arrow.textContent = '·';
+        const valSpan = document.createElement('span');
+        valSpan.textContent = JSON.stringify(value);
+        if      (typeof value === 'string')  valSpan.className = 'jf-tree-val';
+        else if (typeof value === 'number')  valSpan.className = 'jf-tree-num';
+        else if (typeof value === 'boolean') valSpan.className = 'jf-tree-bool';
+        else                                 valSpan.className = 'jf-tree-null';
+        toggle.appendChild(valSpan);
+        const typeBadge = document.createElement('span');
+        typeBadge.className = 'jf-tree-type';
+        typeBadge.textContent = value === null ? 'NULL' : typeof value === 'boolean' ? 'BOOLEAN' : typeof value === 'number' ? 'NUMBER' : 'STRING';
+        toggle.appendChild(typeBadge);
+      }
+    }
+    _node(container, null, val, false);
+  }
+}
+
+// ── Sub-tool D: QR Reader ─────────────────────────────────────
+function _buildQrPanel(panel) {
+  panel.innerHTML = `
+    <div class="tool-sub-name">QR READER</div>
+    <div class="tool-sub-desc">Upload an image containing a QR code and decode its contents. Nothing is uploaded anywhere.</div>
+    <div class="tool-local-badge" style="display:inline-block;margin:8px 0">LOCAL FILE — not uploaded anywhere</div>
+    <div class="tool-drop" id="qr-drop" tabindex="0">
+      DROP IMAGE HERE OR CLICK TO BROWSE (.jpg .jpeg .png .gif .webp .bmp)
+      <input type="file" id="qr-file-input" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp" style="display:none;pointer-events:none;">
+    </div>
+    <canvas id="qr-canvas" style="display:none"></canvas>
+    <div id="qr-result" hidden></div>
+  `;
+
+  const drop   = panel.querySelector('#qr-drop');
+  const input  = panel.querySelector('#qr-file-input');
+  const canvas = panel.querySelector('#qr-canvas');
+  const result = panel.querySelector('#qr-result');
+
+  drop.addEventListener('click', () => input.click());
+  drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('tool-drop-hover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('tool-drop-hover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('tool-drop-hover');
+    if (e.dataTransfer.files[0]) _readQr(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', () => { if (input.files[0]) _readQr(input.files[0]); });
+
+  function _readQr(file) {
+    result.hidden = false;
+    result.innerHTML = `<div class="tool-loading">DECODING QR CODE<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
+    const img = new Image();
+    img.onload = () => {
+      canvas.width  = img.naturalWidth  || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      try {
+        const ZXing = window.ZXing;
+        if (!ZXing) throw new Error('ZXing library not loaded');
+        const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        const binarizer       = new ZXing.HybridBinarizer(luminanceSource);
+        const bitmap          = new ZXing.BinaryBitmap(binarizer);
+        const reader          = new ZXing.MultiFormatReader();
+        const decoded         = reader.decode(bitmap);
+        _showResult(decoded.getText());
+      } catch(e) {
+        _showFail();
+      }
+    };
+    img.onerror = () => _showFail();
+    img.src = URL.createObjectURL(file);
+  }
+
+  function _showFail() {
+    result.hidden = false;
+    result.innerHTML = `
+      <div class="qr-fail">NO QR CODE DETECTED</div>
+      <div class="qr-fail-tips">
+        Suggestions:<br>
+        · Ensure the image is clear and well-lit<br>
+        · Try a higher resolution image<br>
+        · Make sure the QR code is fully visible and not cropped<br>
+        · Try converting the image to PNG for better compatibility
+      </div>
+    `;
+  }
+
+  function _detectType(text) {
+    if (/^https?:\/\//i.test(text))      return 'URL';
+    if (/^mailto:/i.test(text))           return 'EMAIL';
+    if (/^tel:/i.test(text))              return 'PHONE';
+    if (/^BEGIN:VCARD/i.test(text))       return 'VCARD';
+    if (/^WIFI:/i.test(text))             return 'WIFI';
+    return 'TEXT';
+  }
+
+  function _parseVCard(text) {
+    const get = key => { const m = text.match(new RegExp(key + '[^:]*:([^\r\n]+)','i')); return m?m[1].trim():''; };
+    return { name: get('FN'), phone: get('TEL'), email: get('EMAIL'), org: get('ORG') };
+  }
+
+  function _parseWifi(text) {
+    const get = key => { const m = text.match(new RegExp(key + ':([^;]*)','i')); return m?m[1]:''; };
+    return { ssid: get('S'), security: get('T'), password: get('P') };
+  }
+
+  function _showResult(text) {
+    const type = _detectType(text);
+    let html = `<div class="qr-type-badge">${type}</div>`;
+
+    if (type === 'WIFI') {
+      const wifi = _parseWifi(text);
+      const pwdId = 'qr-pwd-' + Date.now();
+      html += `
+        <div class="qr-wifi-card">
+          <div class="qr-wifi-warn">⚠ THIS PASSWORD IS STORED NOWHERE — ONLY YOU CAN SEE IT — CLOSE THIS TAB WHEN DONE</div>
+          <div class="qr-wifi-row">
+            <span class="qr-wifi-label">NETWORK</span>
+            <span class="qr-wifi-val">${_esc(wifi.ssid)}</span>
+            <button class="qr-wifi-copy" data-copy="${_esc(wifi.ssid)}">COPY</button>
+          </div>
+          <div class="qr-wifi-row">
+            <span class="qr-wifi-label">SECURITY</span>
+            <span class="qr-wifi-val">${_esc(wifi.security||'None')}</span>
+          </div>
+          <div class="qr-wifi-row">
+            <span class="qr-wifi-label">PASSWORD</span>
+            <span class="qr-wifi-val"><span id="${pwdId}" style="filter:blur(4px)">${_esc(wifi.password)}</span></span>
+            <button class="qr-pwd-toggle" data-target="${pwdId}">SHOW</button>
+            <button class="qr-wifi-copy" data-copy="${_esc(wifi.password)}">COPY</button>
+          </div>
+        </div>
+      `;
+    } else if (type === 'VCARD') {
+      const vc = _parseVCard(text);
+      html += `
+        <div class="qr-vcard">
+          ${vc.name  ? `<div class="qr-vcard-row"><span class="qr-vcard-label">NAME</span><span class="qr-vcard-val">${_esc(vc.name)}</span></div>` : ''}
+          ${vc.phone ? `<div class="qr-vcard-row"><span class="qr-vcard-label">PHONE</span><span class="qr-vcard-val">${_esc(vc.phone)}</span></div>` : ''}
+          ${vc.email ? `<div class="qr-vcard-row"><span class="qr-vcard-label">EMAIL</span><span class="qr-vcard-val">${_esc(vc.email)}</span></div>` : ''}
+          ${vc.org   ? `<div class="qr-vcard-row"><span class="qr-vcard-label">ORG</span><span class="qr-vcard-val">${_esc(vc.org)}</span></div>` : ''}
+        </div>
+      `;
+    } else {
+      html += `<div class="qr-output">${type === 'URL' ? `<a class="qr-url-link" id="qr-url-link" href="#">${_esc(text)}</a>` : _esc(text)}</div>`;
+    }
+
+    html += `<div class="qr-actions"><button class="tool-btn tool-btn-sm" id="qr-copy">COPY CONTENT</button></div>`;
+    result.hidden = false;
+    result.innerHTML = html;
+
+    // Wire copy buttons
+    result.querySelectorAll('.qr-wifi-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        navigator.clipboard?.writeText(btn.dataset.copy).catch(()=>{});
+        const orig = btn.textContent; btn.textContent = 'COPIED';
+        setTimeout(() => { btn.textContent = orig; }, 1200);
+      });
+    });
+
+    // Wire password show/hide
+    result.querySelectorAll('.qr-pwd-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = document.getElementById(btn.dataset.target);
+        if (!el) return;
+        const hidden = el.style.filter === 'blur(4px)';
+        el.style.filter = hidden ? 'none' : 'blur(4px)';
+        btn.textContent = hidden ? 'HIDE' : 'SHOW';
+      });
+    });
+
+    // URL open confirm
+    const urlLink = result.querySelector('#qr-url-link');
+    if (urlLink) {
+      urlLink.addEventListener('click', e => {
+        e.preventDefault();
+        _mobileConfirm(`Open this URL in a new tab?\n\n${text}`, () => { window.open(text, '_blank', 'noopener,noreferrer'); });
+      });
+    }
+
+    // Main copy button
+    const copyBtn = result.querySelector('#qr-copy');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard?.writeText(text).catch(()=>{});
+        copyBtn.textContent = 'COPIED'; setTimeout(() => { copyBtn.textContent = 'COPY CONTENT'; }, 1500);
+      });
+    }
+
+    HistoryStore.addTool('qr', text.slice(0,40)+(text.length>40?'…':''), [{ label: 'QR SCAN: ' + type, url: '#', desc: text.slice(0,80) }]);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
