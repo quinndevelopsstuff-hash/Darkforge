@@ -80,6 +80,7 @@
        ============================================================ -->
   <nav id="nav-menu" role="tablist" hidden>
     <button class="nav-item nav-item-active" data-tab="builder"   role="tab" aria-selected="true"  aria-controls="panel-builder"><span class="nav-item-label">BUILDER</span></button>
+    <button class="nav-item"                 data-tab="tools"     role="tab" aria-selected="false" aria-controls="panel-tools"><span class="nav-item-label">🛠 TOOLS</span></button>
     <button class="nav-item"                 data-tab="templates" role="tab" aria-selected="false" aria-controls="panel-templates"><span class="nav-item-label">TEMPLATES</span></button>
     <button class="nav-item" data-tab="learn" role="tab" aria-selected="false" aria-controls="panel-learn"><span class="nav-item-label">LEARN</span></button>
     <button class="nav-item"                 data-tab="history"   role="tab" aria-selected="false" aria-controls="panel-history"><span class="nav-item-label">HISTORY</span></button>
@@ -469,6 +470,20 @@
       <div id="learn-methodology" class="learn-section" hidden></div>
     </section><!-- /panel-learn -->
 
+
+    <!-- ===================== TOOLS TAB ======================= -->
+    <section id="panel-tools" class="tab-panel" role="tabpanel" aria-labelledby="tab-tools">
+      <nav class="learn-subnav tools-subnav" id="tools-subnav" aria-label="Investigation tools">
+        <button class="learn-subnav-btn lsnav-active" data-tsec="image">🖼 IMAGE &amp; METADATA</button>
+        <button class="learn-subnav-btn" data-tsec="email">📧 EMAIL &amp; USERNAME</button>
+        <button class="learn-subnav-btn" data-tsec="network">🔌 NETWORK &amp; IP</button>
+      </nav>
+      <div id="tools-scroll" class="tools-scroll">
+        <div id="tool-section-image"   class="tool-section"></div>
+        <div id="tool-section-email"   class="tool-section"></div>
+        <div id="tool-section-network" class="tool-section"></div>
+      </div>
+    </section><!-- /panel-tools -->
 
     <!-- ===================== HISTORY TAB ===================== -->
     <section id="panel-history" class="tab-panel" role="tabpanel" aria-labelledby="tab-history">

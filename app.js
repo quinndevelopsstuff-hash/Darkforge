@@ -663,6 +663,23 @@ const HistoryStore = {
   },
 
   clear() { this.save([]); },
+
+  addTool(toolType, input, resources) {
+    const icons  = { image: '🖼', email: '📧', username: '👤', ip: '🔌' };
+    const labels = { image: 'IMAGE RECON', email: 'EMAIL RECON', username: 'USERNAME RECON', ip: 'IP RECON' };
+    const entries = this.load();
+    entries.unshift({
+      id: Date.now(),
+      date: new Date().toISOString(),
+      toolType,
+      query: `${icons[toolType] || '🛠'} ${labels[toolType] || 'TOOL'}: ${input}`,
+      input,
+      resources,   // [{label, url}]
+      engines: [],
+    });
+    if (entries.length > 200) entries.length = 200;
+    this.save(entries);
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1150,10 +1167,24 @@ function renderHistory() {
       month: '2-digit', day: '2-digit',
       hour: '2-digit',  minute: '2-digit', hour12: false,
     });
+
+    // Tool entries render differently
+    if (e.toolType) {
+      const resCount = Array.isArray(e.resources) ? e.resources.length : 0;
+      return `<tr class="history-tool-row">
+        <td class="history-date">${_esc(date)}</td>
+        <td class="history-query"><code>${_esc(e.query || '')}</code></td>
+        <td class="history-engines">${resCount ? `${resCount} resources` : '—'}</td>
+        <td class="history-actions">
+          <button class="btn btn-sm" data-action="rerun-tool" data-id="${e.id}">Re-run</button>
+          <button class="btn btn-sm btn-danger-outline" data-action="delete" data-id="${e.id}">Delete</button>
+        </td>
+      </tr>`;
+    }
+
     const engLabels = (e.engines || [])
       .map(id => ENGINES[id]?.label || id)
       .join(', ');
-
     return `<tr>
       <td class="history-date">${_esc(date)}</td>
       <td class="history-query"><code>${_esc(e.query || '')}</code></td>
@@ -1179,13 +1210,19 @@ function renderHistory() {
         return;
       }
 
+      // Re-run tool entries: reopen all resource tabs
+      if (action === 'rerun-tool') {
+        const target = document.getElementById('setting-link-target')?.value || '_blank';
+        (entry.resources || []).forEach(r => window.open(r.url, target));
+        return;
+      }
+
       // Edit or Re-run: restore query to builder
       switchTab('builder');
       window.builder.reset();
       _loadQueryString(entry.query || '');
 
       if (action === 'rerun') {
-        // Restore engine selection then fire
         document.querySelectorAll('.engine-checkbox').forEach(cb => {
           cb.checked = (entry.engines || []).includes(cb.dataset.engine);
         });
@@ -1249,6 +1286,7 @@ const TAB_LABELS = {
   learn:     'LEARN',
   history:   'HISTORY',
   export:    'EXPORT',
+  tools:     'TOOLS_',
   settings:  'SETTINGS',
 };
 
@@ -6565,6 +6603,987 @@ const VerificationGate = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// TOOLS TAB
+// Three investigation tool panels — Image, Email/Username, Network
+// ══════════════════════════════════════════════════════════════
+
+// ── Username platform definitions ────────────────────────────
+const USERNAME_PLATFORMS = {
+  'Social Media':          [
+    { name: 'Twitter / X',   url: 'https://twitter.com/[U]' },
+    { name: 'Instagram',     url: 'https://www.instagram.com/[U]/' },
+    { name: 'TikTok',        url: 'https://www.tiktok.com/@[U]' },
+    { name: 'Facebook',      url: 'https://www.facebook.com/[U]' },
+  ],
+  'Professional':          [
+    { name: 'LinkedIn',      url: 'https://www.linkedin.com/in/[U]' },
+    { name: 'GitHub',        url: 'https://github.com/[U]' },
+    { name: 'GitLab',        url: 'https://gitlab.com/[U]' },
+    { name: 'Stack Overflow',url: 'https://stackoverflow.com/users?tab=Reputation&filter=all&search=[U]' },
+  ],
+  'Gaming':                [
+    { name: 'Steam',         url: 'https://steamcommunity.com/id/[U]' },
+    { name: 'Twitch',        url: 'https://www.twitch.tv/[U]' },
+    { name: 'Xbox Gamertag', url: 'https://xboxgamertag.com/search/[U]' },
+    { name: 'Roblox',        url: 'https://www.roblox.com/user.aspx?username=[U]' },
+  ],
+  'Forums & Communities':  [
+    { name: 'Reddit',        url: 'https://www.reddit.com/user/[U]' },
+    { name: 'Quora',         url: 'https://www.quora.com/profile/[U]' },
+    { name: 'Medium',        url: 'https://medium.com/@[U]' },
+    { name: 'Tumblr',        url: 'https://[U].tumblr.com' },
+  ],
+  'Photo & Identity':      [
+    { name: 'Gravatar',      url: 'https://en.gravatar.com/[U]' },
+    { name: 'Flickr',        url: 'https://www.flickr.com/people/[U]' },
+  ],
+  'Other':                 [
+    { name: 'Pastebin',      url: 'https://pastebin.com/u/[U]' },
+    { name: 'About.me',      url: 'https://about.me/[U]' },
+    { name: 'Keybase',       url: 'https://keybase.io/[U]' },
+    { name: 'Linktree',      url: 'https://linktr.ee/[U]' },
+    { name: 'Hacker News',   url: 'https://news.ycombinator.com/user?id=[U]' },
+    { name: 'Product Hunt',  url: 'https://www.producthunt.com/@[U]' },
+    { name: 'Dev.to',        url: 'https://dev.to/[U]' },
+    { name: 'Mastodon',      url: 'https://mastodon.social/@[U]' },
+  ],
+};
+
+// ── Port reference database (100 common ports) ───────────────
+const PORT_DB = {
+  20:    { name:'FTP Data',             proto:'TCP',     risk:'Common',   desc:'FTP data transfer channel' },
+  21:    { name:'FTP',                  proto:'TCP',     risk:'Elevated', desc:'File Transfer Protocol — anonymous access risk' },
+  22:    { name:'SSH',                  proto:'TCP',     risk:'Common',   desc:'Secure Shell — encrypted remote access' },
+  23:    { name:'Telnet',               proto:'TCP',     risk:'High',     desc:'Unencrypted remote terminal — should never be exposed' },
+  25:    { name:'SMTP',                 proto:'TCP',     risk:'Common',   desc:'Email sending — open relay is a major misconfiguration' },
+  53:    { name:'DNS',                  proto:'TCP/UDP', risk:'Common',   desc:'Domain Name System — zone transfer risk if misconfigured' },
+  67:    { name:'DHCP Server',          proto:'UDP',     risk:'Common',   desc:'Dynamic Host Configuration Protocol' },
+  69:    { name:'TFTP',                 proto:'UDP',     risk:'Elevated', desc:'Trivial FTP — no authentication, firmware boot protocol' },
+  80:    { name:'HTTP',                 proto:'TCP',     risk:'Common',   desc:'Unencrypted web traffic' },
+  110:   { name:'POP3',                 proto:'TCP',     risk:'Common',   desc:'Email retrieval — cleartext without TLS' },
+  111:   { name:'RPCbind',              proto:'TCP/UDP', risk:'Elevated', desc:'Remote Procedure Call portmapper' },
+  123:   { name:'NTP',                  proto:'UDP',     risk:'Common',   desc:'Network Time Protocol — UDP amplification risk' },
+  135:   { name:'MS-RPC',               proto:'TCP',     risk:'High',     desc:'Windows RPC endpoint mapper — common attack target' },
+  137:   { name:'NetBIOS-NS',           proto:'TCP/UDP', risk:'High',     desc:'NetBIOS Name Service — Windows network enumeration' },
+  139:   { name:'NetBIOS-SSN',          proto:'TCP',     risk:'High',     desc:'NetBIOS Session — SMB over NetBIOS' },
+  143:   { name:'IMAP',                 proto:'TCP',     risk:'Common',   desc:'Email access protocol — cleartext without TLS' },
+  161:   { name:'SNMP',                 proto:'UDP',     risk:'High',     desc:'Network monitoring — default community strings are a major risk' },
+  179:   { name:'BGP',                  proto:'TCP',     risk:'Elevated', desc:'Border Gateway Protocol — core internet routing' },
+  389:   { name:'LDAP',                 proto:'TCP/UDP', risk:'Elevated', desc:'Directory service — may expose org structure' },
+  443:   { name:'HTTPS',                proto:'TCP',     risk:'Common',   desc:'Encrypted web traffic (TLS/SSL)' },
+  445:   { name:'SMB',                  proto:'TCP',     risk:'High',     desc:'Windows file sharing — EternalBlue/WannaCry attack vector' },
+  465:   { name:'SMTPS',                proto:'TCP',     risk:'Common',   desc:'SMTP over TLS (legacy)' },
+  500:   { name:'IKE/IPSec',            proto:'UDP',     risk:'Common',   desc:'VPN key exchange' },
+  514:   { name:'Syslog',               proto:'UDP',     risk:'Elevated', desc:'System logging — may leak sensitive log data' },
+  587:   { name:'SMTP Submission',      proto:'TCP',     risk:'Common',   desc:'Authenticated email submission — preferred SMTP port' },
+  631:   { name:'IPP',                  proto:'TCP',     risk:'Elevated', desc:'Internet Printing Protocol — printer exposure' },
+  636:   { name:'LDAPS',                proto:'TCP',     risk:'Common',   desc:'LDAP over SSL' },
+  993:   { name:'IMAPS',                proto:'TCP',     risk:'Common',   desc:'IMAP over TLS' },
+  995:   { name:'POP3S',                proto:'TCP',     risk:'Common',   desc:'POP3 over TLS' },
+  1080:  { name:'SOCKS Proxy',          proto:'TCP',     risk:'High',     desc:'SOCKS proxy — common in anonymizer/botnet networks' },
+  1194:  { name:'OpenVPN',              proto:'TCP/UDP', risk:'Common',   desc:'OpenVPN server' },
+  1433:  { name:'MSSQL',                proto:'TCP',     risk:'High',     desc:'Microsoft SQL Server — commonly targeted database' },
+  1434:  { name:'MSSQL Browser',        proto:'UDP',     risk:'High',     desc:'MSSQL Browser service — enables SQL Server discovery' },
+  1521:  { name:'Oracle DB',            proto:'TCP',     risk:'High',     desc:'Oracle database listener' },
+  1723:  { name:'PPTP VPN',             proto:'TCP',     risk:'Elevated', desc:'Point-to-Point Tunneling VPN — weak crypto, deprecated' },
+  1883:  { name:'MQTT',                 proto:'TCP',     risk:'High',     desc:'IoT messaging — often exposed without authentication' },
+  2049:  { name:'NFS',                  proto:'TCP/UDP', risk:'High',     desc:'Network File System — may expose file shares' },
+  2082:  { name:'cPanel HTTP',          proto:'TCP',     risk:'Common',   desc:'cPanel web hosting control panel (unencrypted)' },
+  2083:  { name:'cPanel HTTPS',         proto:'TCP',     risk:'Common',   desc:'cPanel over TLS' },
+  2181:  { name:'ZooKeeper',            proto:'TCP',     risk:'High',     desc:'Apache ZooKeeper — often no auth in default config' },
+  2375:  { name:'Docker API',           proto:'TCP',     risk:'High',     desc:'Docker daemon API (unencrypted) — full host takeover if exposed' },
+  2376:  { name:'Docker TLS',           proto:'TCP',     risk:'Elevated', desc:'Docker daemon API over TLS' },
+  2379:  { name:'etcd',                 proto:'TCP',     risk:'High',     desc:'Kubernetes etcd — cluster state database' },
+  3000:  { name:'HTTP Alt (Grafana…)',  proto:'TCP',     risk:'Common',   desc:'Common dev/app server port — Grafana, Node.js, etc' },
+  3306:  { name:'MySQL',                proto:'TCP',     risk:'High',     desc:'MySQL database — should never be publicly exposed' },
+  3389:  { name:'RDP',                  proto:'TCP',     risk:'High',     desc:'Windows Remote Desktop — extremely high-value attack target' },
+  3690:  { name:'SVN',                  proto:'TCP',     risk:'Elevated', desc:'Subversion version control server' },
+  4369:  { name:'Erlang/RabbitMQ',      proto:'TCP',     risk:'Elevated', desc:'Erlang port mapper / RabbitMQ discovery' },
+  4444:  { name:'Metasploit Default',   proto:'TCP',     risk:'High',     desc:'Common Metasploit listener — malware indicator if found open' },
+  4848:  { name:'GlassFish Admin',      proto:'TCP',     risk:'Elevated', desc:'GlassFish/Payara Java EE admin console' },
+  5000:  { name:'HTTP Alt / Flask',     proto:'TCP',     risk:'Common',   desc:'Common app server port — Flask, Docker Registry' },
+  5432:  { name:'PostgreSQL',           proto:'TCP',     risk:'High',     desc:'PostgreSQL database server' },
+  5601:  { name:'Kibana',               proto:'TCP',     risk:'High',     desc:'Elasticsearch Kibana dashboard — often no authentication' },
+  5672:  { name:'RabbitMQ AMQP',        proto:'TCP',     risk:'Elevated', desc:'RabbitMQ AMQP message broker' },
+  5900:  { name:'VNC',                  proto:'TCP',     risk:'High',     desc:'Virtual Network Computing — screen share, often no auth' },
+  5984:  { name:'CouchDB',              proto:'TCP',     risk:'High',     desc:'CouchDB REST API — /_all_dbs dumps all databases' },
+  6379:  { name:'Redis',                proto:'TCP',     risk:'High',     desc:'Redis cache — no auth by default, potential RCE vector' },
+  6443:  { name:'Kubernetes API',       proto:'TCP',     risk:'High',     desc:'Kubernetes API server — cluster control plane' },
+  7001:  { name:'WebLogic',             proto:'TCP',     risk:'High',     desc:'Oracle WebLogic — frequent remote code execution CVEs' },
+  8000:  { name:'HTTP Alt',             proto:'TCP',     risk:'Common',   desc:'Common development HTTP server port' },
+  8008:  { name:'HTTP Alt',             proto:'TCP',     risk:'Common',   desc:'Alternative HTTP port' },
+  8080:  { name:'HTTP Proxy/Alt',       proto:'TCP',     risk:'Common',   desc:'HTTP proxy or alternative web server port' },
+  8081:  { name:'HTTP Alt',             proto:'TCP',     risk:'Common',   desc:'Alternative HTTP port — common in dev environments' },
+  8443:  { name:'HTTPS Alt',            proto:'TCP',     risk:'Common',   desc:'Alternative HTTPS port — cPanel, Tomcat, Jenkins' },
+  8888:  { name:'Jupyter Notebook',     proto:'TCP',     risk:'High',     desc:'Jupyter Notebook — code execution, often no authentication' },
+  9000:  { name:'PHP-FPM / SonarQube',  proto:'TCP',     risk:'Elevated', desc:'PHP FastCGI or SonarQube code analysis server' },
+  9090:  { name:'Prometheus',           proto:'TCP',     risk:'Elevated', desc:'Prometheus metrics — may expose sensitive infra data' },
+  9092:  { name:'Apache Kafka',         proto:'TCP',     risk:'High',     desc:'Kafka message broker — often no auth by default' },
+  9200:  { name:'Elasticsearch',        proto:'TCP',     risk:'High',     desc:'Elasticsearch REST API — famously misconfigured, no auth' },
+  9300:  { name:'Elasticsearch Cluster',proto:'TCP',     risk:'High',     desc:'Elasticsearch internal cluster communication' },
+  10000: { name:'Webmin',               proto:'TCP',     risk:'High',     desc:'Webmin server admin — web-based Linux management panel' },
+  11211: { name:'Memcached',            proto:'TCP/UDP', risk:'High',     desc:'Memcached — UDP amplification DDoS, no auth by default' },
+  15672: { name:'RabbitMQ Management',  proto:'TCP',     risk:'Elevated', desc:'RabbitMQ Management plugin web UI' },
+  22222: { name:'SSH Alt',              proto:'TCP',     risk:'Elevated', desc:'SSH on alternate port — security-by-obscurity' },
+  25565: { name:'Minecraft',            proto:'TCP',     risk:'Common',   desc:'Minecraft Java Edition server' },
+  27017: { name:'MongoDB',              proto:'TCP',     risk:'High',     desc:'MongoDB — infamous for exposed databases with zero auth' },
+  27018: { name:'MongoDB Shard',        proto:'TCP',     risk:'High',     desc:'MongoDB shard server' },
+  28017: { name:'MongoDB HTTP',         proto:'TCP',     risk:'High',     desc:'MongoDB HTTP admin interface (deprecated in v3.6)' },
+  50000: { name:'SAP',                  proto:'TCP',     risk:'Elevated', desc:'SAP application server' },
+  50070: { name:'Hadoop HDFS NameNode', proto:'TCP',     risk:'High',     desc:'Hadoop HDFS NameNode web UI — may expose cluster data' },
+  50075: { name:'Hadoop DataNode',      proto:'TCP',     risk:'High',     desc:'Hadoop DataNode web UI' },
+  55000: { name:'Wazuh API',            proto:'TCP',     risk:'Elevated', desc:'Wazuh SIEM REST API' },
+};
+
+// ── Shared tool helpers ───────────────────────────────────────
+function _toolOpen(urls, target) {
+  target = target || document.getElementById('setting-link-target')?.value || '_blank';
+  urls.forEach(u => window.open(u.url, target));
+}
+
+function _toolSave(key, val) {
+  try { sessionStorage.setItem('df_tool_' + key, val); } catch {}
+}
+function _toolRestore(key) {
+  try { return sessionStorage.getItem('df_tool_' + key) || ''; } catch { return ''; }
+}
+
+function _toolChecklist(items, ts) {
+  return `<div class="tool-checklist">${items.map((r, i) => `
+    <div class="tool-cl-row" data-idx="${i}">
+      <span class="tool-cl-status">✓</span>
+      <span class="tool-cl-label">${_esc(r.label)}</span>
+      <span class="tool-cl-desc">${_esc(r.desc)}</span>
+      <button class="tool-cl-reopen btn btn-sm" data-url="${_esc(r.url)}">↗</button>
+    </div>`).join('')}
+  <div class="tool-cl-time">Launched at ${ts}</div>
+  </div>`;
+}
+
+function _toolTable(headers, rows) {
+  return `<table class="tool-data-table"><thead><tr>${
+    headers.map(h => `<th>${_esc(h)}</th>`).join('')
+  }</tr></thead><tbody>${
+    rows.map((row, ri) => `<tr class="${ri % 2 ? 'tool-tr-alt' : ''}">${
+      row.map(c => `<td>${c}</td>`).join('')
+    }</tr>`).join('')
+  }</tbody></table>`;
+}
+
+function _toolShowOutput(elOut, html) {
+  elOut.innerHTML = html;
+  elOut.hidden = false;
+  elOut.style.opacity = '0';
+  requestAnimationFrame(() => { elOut.style.transition = 'opacity 0.3s'; elOut.style.opacity = '1'; });
+}
+
+// ── Image URL validator ───────────────────────────────────────
+function _isImageUrl(v) {
+  v = v.trim();
+  if (!/^https?:\/\//i.test(v)) return false;
+  return /\.(jpe?g|png|gif|webp|bmp|tiff?)(\?.*)?$/i.test(v) || /^https?:\/\/.+\.(com|net|org|io|co)/i.test(v);
+}
+
+// ── Load exif-js from CDN ─────────────────────────────────────
+let _exifJsReady = null;
+function _loadExifJs() {
+  if (!_exifJsReady) {
+    _exifJsReady = new Promise((res, rej) => {
+      if (window.EXIF) { res(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _exifJsReady;
+}
+
+// ── EXIF GPS → decimal ────────────────────────────────────────
+function _gpsDecimal(vals, ref) {
+  if (!vals || vals.length < 3) return null;
+  const d = vals[0] + vals[1] / 60 + vals[2] / 3600;
+  return (ref === 'S' || ref === 'W') ? -d : d;
+}
+
+function _renderExifTags(tags, sourceLabel) {
+  const FIELDS = [
+    ['Make','Camera Make'], ['Model','Camera Model'],
+    ['DateTimeOriginal','Date / Time Taken'], ['DateTime','Date Modified'],
+    ['GPSLatitude','GPS Latitude'], ['GPSLongitude','GPS Longitude'], ['GPSAltitude','GPS Altitude'],
+    ['Software','Software Used'], ['ImageWidth','Image Width'], ['ImageLength','Image Height'],
+    ['Orientation','Orientation'], ['ExposureTime','Exposure Time'],
+    ['FNumber','F-Number / Aperture'], ['ISOSpeedRatings','ISO Speed'],
+    ['Flash','Flash'], ['FocalLength','Focal Length'], ['ColorSpace','Color Space'],
+    ['Artist','Artist / Author'], ['Copyright','Copyright'], ['ImageDescription','Description'],
+  ];
+
+  const lat  = _gpsDecimal(tags.GPSLatitude,  tags.GPSLatitudeRef);
+  const lng  = _gpsDecimal(tags.GPSLongitude, tags.GPSLongitudeRef);
+  const rows = [];
+
+  for (const [key, label] of FIELDS) {
+    let val = tags[key];
+    if (val === undefined || val === null || val === '') continue;
+    if (key === 'GPSLatitude' && lat !== null) val = lat.toFixed(6) + '°';
+    else if (key === 'GPSLongitude' && lng !== null) val = lng.toFixed(6) + '°';
+    else if (key === 'ExposureTime' && typeof val === 'number') val = `1/${Math.round(1/val)}s`;
+    else if (key === 'FNumber' && typeof val === 'number') val = `f/${val}`;
+    else if (key === 'FocalLength' && typeof val === 'number') val = `${val}mm`;
+    else val = String(val);
+
+    const isGPS = key === 'GPSLatitude' || key === 'GPSLongitude';
+    rows.push([`<span class="${isGPS ? 'tool-gps-field' : ''}">${_esc(label)}</span>`, _esc(val)]);
+  }
+
+  if (!rows.length) {
+    return `<div class="tool-no-data">No EXIF metadata found — image may have been stripped. Try the forensics tool above.</div>`;
+  }
+
+  let gpsHtml = '';
+  if (lat !== null && lng !== null) {
+    const mapUrl = `https://maps.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+    gpsHtml = `<div class="tool-gps-link"><a href="${_esc(mapUrl)}" target="_blank" rel="noopener">📍 VIEW ON MAP (${lat.toFixed(4)}, ${lng.toFixed(4)})</a></div>`;
+  }
+
+  return `<div class="tool-exif-source">${_esc(sourceLabel)}</div>` +
+    gpsHtml +
+    _toolTable(['FIELD', 'VALUE'], rows);
+}
+
+// ── UA parser ────────────────────────────────────────────────
+function _parseUA(ua) {
+  if (!ua.trim()) return null;
+  const BOTS = [
+    [/Googlebot/i,'Googlebot'],[/bingbot/i,'Bingbot'],[/Slurp/i,'Yahoo Slurp'],
+    [/DuckDuckBot/i,'DuckDuckBot'],[/Baiduspider/i,'Baiduspider'],[/YandexBot/i,'YandexBot'],
+    [/facebookexternalhit/i,'Facebook Crawler'],[/Twitterbot/i,'Twitterbot'],
+    [/LinkedInBot/i,'LinkedInBot'],[/AhrefsBot/i,'AhrefsBot'],[/SemrushBot/i,'SemrushBot'],
+    [/python-requests/i,'Python Requests'],[/curl\//i,'curl'],[/wget/i,'wget'],
+    [/Go-http-client/i,'Go HTTP Client'],[/Java\//i,'Java HTTP'],
+  ];
+  for (const [re,name] of BOTS) {
+    if (re.test(ua)) return { browser:name, engine:'N/A', os:'N/A', device:'Bot/Crawler', isBot:true };
+  }
+  let os = 'Unknown';
+  if (/Windows NT 10\.0/i.test(ua))          os = 'Windows 10 / 11';
+  else if (/Windows NT 6\.3/i.test(ua))      os = 'Windows 8.1';
+  else if (/Windows NT 6\.1/i.test(ua))      os = 'Windows 7';
+  else if (/Windows NT/i.test(ua))           os = 'Windows';
+  else if (/CrOS/i.test(ua))                 os = 'ChromeOS';
+  else if (/iPhone OS ([\d_]+)/i.test(ua))   os = 'iOS ' + ua.match(/iPhone OS ([\d_]+)/i)[1].replace(/_/g,'.');
+  else if (/Android ([\d.]+)/i.test(ua))     os = 'Android ' + ua.match(/Android ([\d.]+)/i)[1];
+  else if (/Mac OS X ([\d_.]+)/i.test(ua))   os = 'macOS ' + ua.match(/Mac OS X ([\d_.]+)/i)[1].replace(/_/g,'.');
+  else if (/Linux/i.test(ua))                os = 'Linux';
+
+  let device = 'Desktop';
+  if (/iPhone/i.test(ua))                    device = 'Mobile (iPhone)';
+  else if (/Android.*Mobile/i.test(ua))      device = 'Mobile (Android)';
+  else if (/iPad/i.test(ua))                 device = 'Tablet (iPad)';
+  else if (/Android/i.test(ua))              device = 'Tablet (Android)';
+
+  let browser = 'Unknown', engine = 'Unknown';
+  if (/Edg\/([\d]+)/i.test(ua))              { browser='Edge '      + ua.match(/Edg\/([\d]+)/i)[1];        engine='Blink'; }
+  else if (/OPR\/([\d]+)/i.test(ua))         { browser='Opera '     + ua.match(/OPR\/([\d]+)/i)[1];        engine='Blink'; }
+  else if (/Chrome\/([\d]+)/i.test(ua))      { browser='Chrome '    + ua.match(/Chrome\/([\d]+)/i)[1];     engine='Blink'; }
+  else if (/Firefox\/([\d]+)/i.test(ua))     { browser='Firefox '   + ua.match(/Firefox\/([\d]+)/i)[1];    engine='Gecko'; }
+  else if (/Version\/([\d]+).*Safari/i.test(ua)){ browser='Safari ' + ua.match(/Version\/([\d]+)/i)[1];   engine='WebKit'; }
+  else if (/Trident|MSIE/i.test(ua))         { browser='Internet Explorer'; engine='Trident'; }
+
+  return { browser, engine, os, device, isBot:false };
+}
+
+// ── CIDR calculator ───────────────────────────────────────────
+function _calcCIDR(input) {
+  const parts = input.trim().split('/');
+  if (parts.length !== 2) return null;
+  const prefix = parseInt(parts[1]);
+  if (isNaN(prefix) || prefix < 0 || prefix > 32) return null;
+  const oct = parts[0].split('.').map(Number);
+  if (oct.length !== 4 || oct.some(o => isNaN(o) || o < 0 || o > 255)) return null;
+  const toInt = o => ((o[0]<<24)|(o[1]<<16)|(o[2]<<8)|o[3]) >>> 0;
+  const toIP  = n => [(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255].join('.');
+  const ip   = toInt(oct);
+  const mask = prefix === 0 ? 0 : (0xFFFFFFFF << (32-prefix)) >>> 0;
+  const wild = (~mask) >>> 0;
+  const net  = (ip & mask) >>> 0;
+  const bc   = (net | wild) >>> 0;
+  const hosts = prefix >= 31 ? Math.pow(2, 32-prefix) : Math.pow(2, 32-prefix) - 2;
+  return {
+    network: toIP(net), broadcast: toIP(bc),
+    first: prefix >= 31 ? toIP(net) : toIP(net+1),
+    last:  prefix >= 31 ? toIP(bc)  : toIP(bc-1),
+    hosts: Math.max(0, hosts), mask: toIP(mask), wildcard: toIP(wild),
+  };
+}
+
+// ── IPv4 converter ────────────────────────────────────────────
+function _convertIP(input) {
+  const oct = input.trim().split('.').map(Number);
+  if (oct.length !== 4 || oct.some(o => isNaN(o) || o < 0 || o > 255)) return null;
+  const n = ((oct[0]<<24)|(oct[1]<<16)|(oct[2]<<8)|oct[3]) >>> 0;
+  return {
+    decimal: input.trim(),
+    hex: '0x' + n.toString(16).padStart(8,'0').toUpperCase(),
+    binary: oct.map(o => o.toString(2).padStart(8,'0')).join('.'),
+    integer: n,
+    rdns: oct.slice().reverse().join('.') + '.in-addr.arpa',
+  };
+}
+
+// ── IP validation ─────────────────────────────────────────────
+function _isValidIP(v) {
+  v = v.trim();
+  const v4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (v4.test(v)) return v.split('.').every(o => +o >= 0 && +o <= 255);
+  return /^[0-9a-fA-F:]+$/.test(v) && v.includes(':'); // basic IPv6
+}
+
+// ── Main initTools entry point ────────────────────────────────
+function initTools() {
+  _buildImageSection();
+  _buildEmailSection();
+  _buildNetworkSection();
+
+  // Secondary nav: scroll-to + IntersectionObserver active state
+  const btns = document.querySelectorAll('[data-tsec]');
+  const secs  = document.querySelectorAll('.tool-section');
+
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('tool-section-' + btn.dataset.tsec)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  if ('IntersectionObserver' in window) {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const id = e.target.id.replace('tool-section-', '');
+          btns.forEach(b => b.classList.toggle('lsnav-active', b.dataset.tsec === id));
+        }
+      });
+    }, { threshold: 0.25 });
+    secs.forEach(s => obs.observe(s));
+  }
+
+  // Restore session state
+  [['t-imgurl','img'],['t-exifurl','exif'],['t-email','email'],
+   ['t-username','username'],['t-ip','ip']].forEach(([id, key]) => {
+    const el  = document.getElementById(id);
+    const val = _toolRestore(key);
+    if (el && val) { el.value = val; el.dispatchEvent(new Event('input')); }
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOOL 1 — IMAGE & METADATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _buildImageSection() {
+  const sec = document.getElementById('tool-section-image');
+  if (!sec) return;
+
+  sec.innerHTML = `
+    <div class="tool-panel-hdr">
+      <span class="tool-panel-title">🖼 IMAGE &amp; METADATA</span>
+      <span class="tool-panel-desc">Reverse search an image and extract publicly available metadata clues from any image URL</span>
+    </div>
+    <div class="tool-pair">
+      <!-- Sub-tool A: Reverse Search -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">REVERSE IMAGE SEARCH</div>
+        <div class="tool-sub-desc">Open 6 reverse image search engines simultaneously</div>
+        <input type="url" class="tool-input" id="t-imgurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
+        <div class="tool-err" id="t-imgurl-err" hidden></div>
+        <button class="tool-btn" id="t-btn-reverse" disabled>⚡ REVERSE SEARCH — 6 ENGINES</button>
+        <div class="tool-out" id="t-reverse-out" hidden></div>
+      </div>
+      <!-- Sub-tool B: EXIF Extractor -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">EXIF METADATA EXTRACTOR</div>
+        <div class="tool-sub-desc">Extract EXIF metadata from any publicly accessible image URL</div>
+        <input type="url" class="tool-input" id="t-exifurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
+        <button class="tool-btn" id="t-btn-exif" disabled>⚡ EXTRACT METADATA</button>
+        <div class="tool-file-sep">OR UPLOAD AN IMAGE FILE DIRECTLY</div>
+        <div class="tool-drop" id="t-exif-drop">
+          DROP IMAGE HERE OR CLICK TO BROWSE
+          <input type="file" id="t-exif-file" accept=".jpg,.jpeg,.png,.gif,.webp,.tiff,.bmp" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+        </div>
+        <div class="tool-local-badge" id="t-local-badge" hidden>🟢 LOCAL FILE — not sent anywhere</div>
+        <div class="tool-out" id="t-exif-out" hidden></div>
+      </div>
+    </div>
+  `;
+
+  // ── Reverse image search logic ────────────────────────────
+  const imgInput = document.getElementById('t-imgurl');
+  const btnReverse = document.getElementById('t-btn-reverse');
+  const errEl    = document.getElementById('t-imgurl-err');
+  const reverseOut = document.getElementById('t-reverse-out');
+
+  const REVERSE_ENGINES = [
+    { label:'Google Lens',      desc:'Google Lens reverse image search',          url: u => `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(u)}` },
+    { label:'TinEye',           desc:'Oldest reverse image search engine',        url: u => `https://tineye.com/search?url=${encodeURIComponent(u)}` },
+    { label:'Bing Visual',      desc:'Microsoft Bing visual search',              url: u => `https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:${encodeURIComponent(u)}` },
+    { label:'Yandex Images',    desc:'Often finds results Google misses',         url: u => `https://yandex.com/images/search?url=${encodeURIComponent(u)}&rpt=imageview` },
+    { label:'EXIF.tools',       desc:'Online EXIF metadata reader for the URL',   url: u => `https://exif.tools/image.php?url=${encodeURIComponent(u)}` },
+    { label:'Photo Forensics',  desc:'Detect image manipulation and editing',     url: u => `https://29a.ch/photo-forensics/#forensic-magnifier|url=${encodeURIComponent(u)}` },
+  ];
+
+  imgInput.addEventListener('input', () => {
+    _toolSave('img', imgInput.value);
+    const ok = _isImageUrl(imgInput.value);
+    btnReverse.disabled = !ok;
+    errEl.hidden = ok || !imgInput.value.trim();
+    if (!ok && imgInput.value.trim()) errEl.textContent = 'Enter a valid image URL starting with https://';
+  });
+
+  btnReverse.addEventListener('click', () => {
+    const u   = imgInput.value.trim();
+    const tgt = document.getElementById('setting-link-target')?.value || '_blank';
+    const resources = REVERSE_ENGINES.map(e => ({ label: e.label, desc: e.desc, url: e.url(u) }));
+    resources.forEach(r => window.open(r.url, tgt));
+    const ts = new Date().toLocaleTimeString();
+    _toolShowOutput(reverseOut,
+      `<div class="tool-launch-hdr">6 tabs opened at ${ts}</div>` +
+      `<div class="tool-checklist">${resources.map(r =>
+        `<div class="tool-cl-row"><span class="tool-cl-ck">✓</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button></div>`
+      ).join('')}</div>`
+    );
+    reverseOut.querySelectorAll('.tool-cl-open').forEach(btn => {
+      btn.addEventListener('click', () => window.open(btn.dataset.url, tgt));
+    });
+    HistoryStore.addTool('image', u, resources);
+    renderHistory();
+  });
+
+  // ── EXIF extractor logic ─────────────────────────────────
+  const exifInput  = document.getElementById('t-exifurl');
+  const btnExif    = document.getElementById('t-btn-exif');
+  const exifOut    = document.getElementById('t-exif-out');
+  const fileInput  = document.getElementById('t-exif-file');
+  const localBadge = document.getElementById('t-local-badge');
+  const dropZone   = document.getElementById('t-exif-drop');
+
+  exifInput.addEventListener('input', () => {
+    _toolSave('exif', exifInput.value);
+    btnExif.disabled = !_isImageUrl(exifInput.value);
+    localBadge.hidden = true;
+  });
+
+  btnExif.addEventListener('click', () => _doExifUrl(exifInput.value.trim()));
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    localBadge.hidden = false;
+    exifInput.value = '';
+    btnExif.disabled = true;
+    _doExifFile(file);
+  });
+
+  ['dragover','dragenter'].forEach(ev => {
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('tool-drop-hover'); });
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('tool-drop-hover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('tool-drop-hover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) { localBadge.hidden = false; _doExifFile(file); }
+  });
+
+  function _doExifUrl(url) {
+    _toolShowOutput(exifOut, '<div class="tool-loading">⚙ LOADING EXIF DATA…</div>');
+    _loadExifJs().then(() => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function() {
+        window.EXIF.getData(this, function() {
+          const tags = window.EXIF.getAllTags(this);
+          _toolShowOutput(exifOut, _renderExifTags(tags, 'Source: ' + url));
+        });
+      };
+      img.onerror = () => {
+        _toolShowOutput(exifOut,
+          `<div class="tool-no-data">Direct fetch blocked by CORS policy. Opening EXIF.tools for this image instead…</div>`);
+        window.open(`https://exif.tools/image.php?url=${encodeURIComponent(url)}`, '_blank');
+      };
+      img.src = url;
+    }).catch(() => {
+      _toolShowOutput(exifOut, '<div class="tool-err-msg">Could not load EXIF library. Check your connection.</div>');
+    });
+  }
+
+  function _doExifFile(file) {
+    _toolShowOutput(exifOut, '<div class="tool-loading">⚙ READING FILE…</div>');
+    _loadExifJs().then(() => {
+      const objUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function() {
+        window.EXIF.getData(this, function() {
+          const tags = window.EXIF.getAllTags(this);
+          URL.revokeObjectURL(objUrl);
+          _toolShowOutput(exifOut, _renderExifTags(tags, 'Source: ' + file.name + ' (local)'));
+        });
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); _toolShowOutput(exifOut, '<div class="tool-err-msg">Could not read image file.</div>'); };
+      img.src = objUrl;
+    }).catch(() => {
+      _toolShowOutput(exifOut, '<div class="tool-err-msg">Could not load EXIF library. Check your connection.</div>');
+    });
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOOL 2 — EMAIL & USERNAME
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _buildEmailSection() {
+  const sec = document.getElementById('tool-section-email');
+  if (!sec) return;
+
+  const allPlatformCount = Object.values(USERNAME_PLATFORMS).reduce((s,a) => s + a.length, 0);
+
+  sec.innerHTML = `
+    <div class="tool-panel-hdr">
+      <span class="tool-panel-title">📧 EMAIL &amp; USERNAME</span>
+      <span class="tool-panel-desc">Investigate an email address or username across breach databases, social platforms, and OSINT resources — all free, no API keys required</span>
+    </div>
+    <div class="tool-pair">
+      <!-- Sub-tool A: Email Investigator -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">EMAIL INVESTIGATOR</div>
+        <div class="tool-sub-desc">Launch 10 OSINT resources for any email address</div>
+        <input type="email" class="tool-input" id="t-email" placeholder="target@example.com" autocomplete="off" spellcheck="false">
+        <div class="tool-email-hint" id="t-email-hint"></div>
+        <button class="tool-btn" id="t-btn-email" disabled>⚡ INVESTIGATE EMAIL — 10 RESOURCES</button>
+        <div class="tool-out" id="t-email-out" hidden></div>
+      </div>
+      <!-- Sub-tool B: Username Investigator -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">USERNAME INVESTIGATOR</div>
+        <div class="tool-sub-desc">Search a username across social, professional, gaming, and more</div>
+        <input type="text" class="tool-input" id="t-username" placeholder="username or handle" autocomplete="off" spellcheck="false" maxlength="50">
+        <div class="tool-platform-toggles" id="t-platform-toggles"></div>
+        <button class="tool-btn" id="t-btn-username" disabled>⚡ SEARCH USERNAME — ${allPlatformCount} PLATFORMS</button>
+        <div class="tool-out" id="t-username-out" hidden></div>
+      </div>
+    </div>
+  `;
+
+  // ── Email investigator ────────────────────────────────────
+  const emailIn  = document.getElementById('t-email');
+  const emailHint = document.getElementById('t-email-hint');
+  const btnEmail = document.getElementById('t-btn-email');
+  const emailOut = document.getElementById('t-email-out');
+
+  const _emailValid = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+  emailIn.addEventListener('input', () => {
+    const v = emailIn.value.trim();
+    _toolSave('email', v);
+    btnEmail.disabled = !_emailValid(v);
+    if (_emailValid(v)) {
+      const [user, domain] = v.split('@');
+      emailHint.textContent = `Username: ${user}  |  Domain: ${domain}`;
+    } else {
+      emailHint.textContent = '';
+    }
+  });
+
+  btnEmail.addEventListener('click', () => {
+    const email = emailIn.value.trim();
+    const [user, domain] = email.split('@');
+    const enc  = encodeURIComponent;
+    const tgt  = document.getElementById('setting-link-target')?.value || '_blank';
+
+    const resources = [
+      { label:'HaveIBeenPwned',    desc:'Check if email appears in known data breaches',      url:`https://haveibeenpwned.com/account/${enc(email)}` },
+      { label:'DeHashed',          desc:'Breach database search (free preview)',               url:`https://dehashed.com/search?query=${enc(email)}` },
+      { label:'Pastebin Dork',     desc:'Google dork for email on Pastebin',                  url:`https://www.google.com/search?q=site%3Apastebin.com+%22${enc(email)}%22` },
+      { label:'Hunter.io Domain',  desc:'Find other emails at the same domain',               url:`https://hunter.io/domain-search/${enc(domain)}` },
+      { label:'Email Format',      desc:'Discover company email naming patterns',             url:`https://www.email-format.com/d/${enc(domain)}/` },
+      { label:'MXToolbox Headers', desc:'Analyze email headers (manual paste)',               url:`https://mxtoolbox.com/EmailHeaders.aspx` },
+      { label:'Google Exact',      desc:'Google search for exact email address',              url:`https://www.google.com/search?q=%22${enc(email)}%22` },
+      { label:'Bing Exact',        desc:'Bing search for exact email address',                url:`https://www.bing.com/search?q=%22${enc(email)}%22` },
+      { label:'Username Sweep',    desc:'Search email username across major platforms',       url:`https://www.google.com/search?q=%22${enc(user)}%22+site%3Agithub.com+OR+site%3Alinkedin.com+OR+site%3Areddit.com` },
+      { label:'GitHub Commits',    desc:'Find commits associated with this email',            url:`https://github.com/search?q=${enc(email)}&type=commits` },
+    ];
+
+    resources.forEach(r => window.open(r.url, tgt));
+    const ts = new Date().toLocaleTimeString();
+
+    const checkItems = [
+      { text:'HaveIBeenPwned — note which breaches found', id:'hcp0' },
+      { text:'Check breach dates — older = more likely stale password', id:'hcp1' },
+      { text:"Hunter.io — confirms email is real if domain match found", id:'hcp2' },
+      { text:'GitHub commits — reveals real name if commit found', id:'hcp3' },
+      { text:'Pastebin — look for credential combos containing email', id:'hcp4' },
+      { text:'Note the email domain — research it as a company', id:'hcp5' },
+    ];
+
+    const clKey = 'df_ecl_' + encodeURIComponent(email);
+    const savedCL = (() => { try { return JSON.parse(sessionStorage.getItem(clKey) || '{}'); } catch { return {}; } })();
+
+    _toolShowOutput(emailOut,
+      `<div class="tool-launch-hdr">10 tabs opened at ${ts}</div>` +
+      `<div class="tool-checklist">${resources.map(r =>
+        `<div class="tool-cl-row"><span class="tool-cl-ck">✓</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button></div>`
+      ).join('')}</div>` +
+      `<div class="tool-invest-card">
+        <div class="tool-invest-hdr">INVESTIGATION CHECKLIST</div>
+        ${checkItems.map(c => `<label class="tool-invest-row"><input type="checkbox" class="tool-invest-cb" data-cid="${c.id}" ${savedCL[c.id]?'checked':''}> <span>${_esc(c.text)}</span></label>`).join('')}
+        <button class="tool-invest-reset btn btn-sm" style="margin-top:8px">RESET CHECKLIST</button>
+      </div>`
+    );
+
+    emailOut.querySelectorAll('.tool-cl-open').forEach(btn => btn.addEventListener('click', () => window.open(btn.dataset.url, tgt)));
+    emailOut.querySelectorAll('.tool-invest-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const state = {};
+        emailOut.querySelectorAll('.tool-invest-cb').forEach(c => { state[c.dataset.cid] = c.checked; });
+        try { sessionStorage.setItem(clKey, JSON.stringify(state)); } catch {}
+      });
+    });
+    emailOut.querySelector('.tool-invest-reset')?.addEventListener('click', () => {
+      emailOut.querySelectorAll('.tool-invest-cb').forEach(c => { c.checked = false; });
+      try { sessionStorage.removeItem(clKey); } catch {}
+    });
+
+    HistoryStore.addTool('email', email, resources);
+    renderHistory();
+  });
+
+  // ── Username investigator ─────────────────────────────────
+  const unameIn  = document.getElementById('t-username');
+  const btnUname = document.getElementById('t-btn-username');
+  const unameOut = document.getElementById('t-username-out');
+  const togglesEl = document.getElementById('t-platform-toggles');
+
+  const catChecked = {};
+  Object.keys(USERNAME_PLATFORMS).forEach(cat => { catChecked[cat] = true; });
+
+  function _updateUnameBtn() {
+    const uname = unameIn.value.trim().replace(/^@/, '');
+    const count = Object.keys(USERNAME_PLATFORMS)
+      .filter(cat => catChecked[cat])
+      .reduce((s, cat) => s + USERNAME_PLATFORMS[cat].length, 0);
+    const ok = uname.length >= 1 && uname.length <= 50 && !/\s/.test(uname);
+    btnUname.disabled = !ok;
+    btnUname.textContent = `⚡ SEARCH USERNAME — ${count} PLATFORMS`;
+  }
+
+  // Build platform toggles
+  togglesEl.innerHTML = Object.keys(USERNAME_PLATFORMS).map(cat => `
+    <label class="tool-toggle-row">
+      <input type="checkbox" class="tool-cat-cb" data-cat="${_esc(cat)}" checked>
+      <span class="tool-cat-label">${_esc(cat)}</span>
+      <span class="tool-cat-count">(${USERNAME_PLATFORMS[cat].length})</span>
+    </label>`).join('');
+
+  togglesEl.querySelectorAll('.tool-cat-cb').forEach(cb => {
+    cb.addEventListener('change', () => { catChecked[cb.dataset.cat] = cb.checked; _updateUnameBtn(); });
+  });
+
+  unameIn.addEventListener('input', () => {
+    const v = unameIn.value.trim().replace(/^@/, '');
+    _toolSave('username', unameIn.value);
+    _updateUnameBtn();
+  });
+
+  btnUname.addEventListener('click', () => {
+    const uname = unameIn.value.trim().replace(/^@/, '');
+    const enc   = encodeURIComponent(uname);
+    const tgt   = document.getElementById('setting-link-target')?.value || '_blank';
+
+    const resources = [];
+    Object.keys(USERNAME_PLATFORMS).filter(cat => catChecked[cat]).forEach(cat => {
+      USERNAME_PLATFORMS[cat].forEach(p => {
+        resources.push({
+          label: p.name,
+          cat,
+          url: p.url.replace('[U]', enc),
+          state: 'unchecked',
+        });
+      });
+    });
+
+    resources.forEach(r => window.open(r.url, tgt));
+    const ts = new Date().toLocaleTimeString();
+
+    // Build result tracker grouped by category
+    const grouped = {};
+    resources.forEach(r => { (grouped[r.cat] = grouped[r.cat] || []).push(r); });
+
+    const trackerHtml = Object.entries(grouped).map(([cat, items]) => `
+      <div class="tool-rt-group">
+        <div class="tool-rt-cat">${_esc(cat)}</div>
+        ${items.map((r, i) => `
+          <div class="tool-rt-row" data-ri="${resources.indexOf(r)}">
+            <span class="tool-rt-name">${_esc(r.label)}</span>
+            <div class="tool-rt-btns">
+              <button class="btn btn-sm tool-rt-btn" data-st="found">✓ EXISTS</button>
+              <button class="btn btn-sm tool-rt-btn" data-st="notfound">✗ NOT FOUND</button>
+              <button class="btn btn-sm tool-rt-btn" data-st="unsure">? UNSURE</button>
+            </div>
+            <button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button>
+          </div>`).join('')}
+      </div>`).join('');
+
+    _toolShowOutput(unameOut,
+      `<div class="tool-launch-hdr">${resources.length} tabs opened at ${ts}</div>` +
+      `<div class="tool-rt-summary" id="t-rt-summary">FOUND ON <span id="t-rt-found">0</span> / <span id="t-rt-checked">0</span> PLATFORMS CHECKED</div>` +
+      trackerHtml +
+      `<button class="tool-btn tool-save-results-btn" id="t-save-results" style="margin-top:12px">💾 SAVE RESULTS TO HISTORY</button>`
+    );
+
+    const states = new Array(resources.length).fill('unchecked');
+
+    function _updateSummary() {
+      const checked = states.filter(s => s !== 'unchecked').length;
+      const found   = states.filter(s => s === 'found').length;
+      document.getElementById('t-rt-found').textContent   = found;
+      document.getElementById('t-rt-checked').textContent = checked;
+    }
+
+    unameOut.querySelectorAll('.tool-rt-row').forEach(row => {
+      const ri = +row.dataset.ri;
+      row.querySelectorAll('.tool-rt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          states[ri] = btn.dataset.st;
+          row.querySelectorAll('.tool-rt-btn').forEach(b => b.classList.remove('tool-rt-active'));
+          btn.classList.add('tool-rt-active');
+          row.classList.remove('tool-rt-found','tool-rt-notfound','tool-rt-unsure');
+          row.classList.add('tool-rt-' + btn.dataset.st);
+          _updateSummary();
+        });
+      });
+    });
+
+    unameOut.querySelectorAll('.tool-cl-open').forEach(btn => btn.addEventListener('click', () => window.open(btn.dataset.url, tgt)));
+
+    document.getElementById('t-save-results')?.addEventListener('click', () => {
+      const annotated = resources.map((r,i) => ({ ...r, state: states[i] }));
+      HistoryStore.addTool('username', uname, annotated);
+      renderHistory();
+      document.getElementById('t-save-results').textContent = '✓ SAVED';
+    });
+
+    HistoryStore.addTool('username', uname, resources);
+    renderHistory();
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOOL 3 — NETWORK & IP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _buildNetworkSection() {
+  const sec = document.getElementById('tool-section-network');
+  if (!sec) return;
+
+  sec.innerHTML = `
+    <div class="tool-panel-hdr">
+      <span class="tool-panel-title">🔌 NETWORK &amp; IP</span>
+      <span class="tool-panel-desc">Investigate an IP address or domain's network footprint using free public intelligence sources</span>
+    </div>
+    <div class="tool-pair">
+      <!-- Sub-tool A: IP Investigator -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">IP INVESTIGATOR</div>
+        <div class="tool-sub-desc">Launch 10 intelligence sources and fetch live geolocation data</div>
+        <input type="text" class="tool-input" id="t-ip" placeholder="8.8.8.8" autocomplete="off" spellcheck="false">
+        <div class="tool-err" id="t-ip-err" hidden></div>
+        <button class="tool-btn" id="t-btn-ip" disabled>⚡ INVESTIGATE IP — 10 RESOURCES</button>
+        <div class="tool-out" id="t-ip-out" hidden></div>
+      </div>
+      <!-- Sub-tool B: Network Helpers -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">NETWORK HELPER TOOLS</div>
+        <div class="tool-sub-desc">Client-side utilities: CIDR calculator, IP converter, port lookup, User-Agent parser</div>
+        <div id="t-helpers"></div>
+      </div>
+    </div>
+  `;
+
+  // ── IP Investigator ───────────────────────────────────────
+  const ipIn   = document.getElementById('t-ip');
+  const btnIP  = document.getElementById('t-btn-ip');
+  const ipErr  = document.getElementById('t-ip-err');
+  const ipOut  = document.getElementById('t-ip-out');
+
+  ipIn.addEventListener('input', () => {
+    const v = ipIn.value.trim();
+    _toolSave('ip', v);
+    const ok = _isValidIP(v);
+    btnIP.disabled = !ok;
+    ipErr.hidden = ok || !v;
+    if (!ok && v) ipErr.textContent = /[a-zA-Z]/.test(v) && v.includes('.') ? 'Enter an IP address — use Domain tools for domain investigation' : 'Enter a valid IPv4 or IPv6 address';
+  });
+
+  btnIP.addEventListener('click', () => {
+    const ip  = ipIn.value.trim();
+    const enc = encodeURIComponent;
+    const tgt = document.getElementById('setting-link-target')?.value || '_blank';
+
+    const resources = [
+      { label:'IPInfo.io',            desc:'Location, ISP, ASN, hostname info',                      url:`https://ipinfo.io/${enc(ip)}` },
+      { label:'IP-API',               desc:'Geolocation and network details',                        url:`http://ip-api.com/${enc(ip)}` },
+      { label:'WhatIsMyIPAddress',     desc:'Location and ISP lookup',                               url:`https://whatismyipaddress.com/ip/${enc(ip)}` },
+      { label:'AbuseIPDB',            desc:'Check IP for abuse and malicious reports',               url:`https://www.abuseipdb.com/check/${enc(ip)}` },
+      { label:'VirusTotal',           desc:'Security vendor reputation scan',                        url:`https://www.virustotal.com/gui/ip-address/${enc(ip)}` },
+      { label:'Shodan Host Lookup',   desc:'Open ports and services (account needed for full results)', url:`https://www.shodan.io/host/${enc(ip)}` },
+      { label:'BGP.he.net',           desc:'BGP routing, ASN, and network ownership',               url:`https://bgp.he.net/ip/${enc(ip)}` },
+      { label:'MXToolbox Blacklist',  desc:'Check if IP is on email blacklists',                    url:`https://mxtoolbox.com/blacklists.aspx?q=${enc(ip)}` },
+      { label:'ViewDNS Reverse IP',   desc:'Find other domains hosted on this IP',                  url:`https://viewdns.info/reverseip/?host=${enc(ip)}&t=1` },
+      { label:'IPVoid',               desc:'IP reputation across multiple databases',                url:`https://www.ipvoid.com/ip-reputation/` },
+    ];
+
+    resources.forEach(r => window.open(r.url, tgt));
+    const ts = new Date().toLocaleTimeString();
+
+    _toolShowOutput(ipOut,
+      `<div class="tool-launch-hdr">10 tabs opened at ${ts}</div>` +
+      `<div class="tool-checklist">${resources.map(r =>
+        `<div class="tool-cl-row"><span class="tool-cl-ck">✓</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button></div>`
+      ).join('')}</div>` +
+      `<div class="tool-ip-live" id="t-ip-live"><div class="tool-loading">QUERYING IP DATA<span class="tool-dots">...</span></div></div>` +
+      `<div class="tool-rate-note">Data from ip-api.com — free tier: 45 requests/min</div>`
+    );
+
+    ipOut.querySelectorAll('.tool-cl-open').forEach(btn => btn.addEventListener('click', () => window.open(btn.dataset.url, tgt)));
+
+    // Fetch live data from ip-api.com
+    const liveEl = document.getElementById('t-ip-live');
+    fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,isp,org,as,timezone,proxy,mobile`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.status !== 'success') { liveEl.innerHTML = `<div class="tool-err-msg">Could not fetch IP data — check the resources above for manual lookup</div>`; return; }
+        const flag = data.countryCode ? String.fromCodePoint(...[...data.countryCode.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0))) : '';
+        const mapUrl = `https://maps.google.com/maps?q=${data.lat},${data.lon}`;
+        const rows = [
+          ['Country',    `${flag} ${_esc(data.country)} (${_esc(data.countryCode)})`],
+          ['Region',     _esc(data.regionName)],
+          ['City',       _esc(data.city)],
+          ['ZIP Code',   _esc(data.zip)],
+          ['Coordinates',`${data.lat}, ${data.lon} — <a href="${_esc(mapUrl)}" target="_blank" rel="noopener">📍 VIEW ON MAP</a>`],
+          ['ISP',        _esc(data.isp)],
+          ['Organization',_esc(data.org)],
+          ['ASN',        _esc(data.as)],
+          ['Timezone',   _esc(data.timezone)],
+          ['Proxy/VPN',  data.proxy ? '<span style="color:var(--color-danger)">Yes — likely proxy/VPN/Tor</span>' : 'No'],
+          ['Mobile Network', data.mobile ? 'Yes' : 'No'],
+        ];
+        liveEl.innerHTML = `<div class="tool-live-hdr">LIVE IP DATA</div>` +
+          `<table class="tool-data-table"><tbody>${rows.map((r,i) =>
+            `<tr class="${i%2?'tool-tr-alt':''}"><td class="tool-td-key">${r[0]}</td><td>${r[1]}</td></tr>`
+          ).join('')}</tbody></table>`;
+      })
+      .catch(() => {
+        if (liveEl) liveEl.innerHTML = `<div class="tool-err-msg">Could not fetch IP data — check the resources above for manual lookup</div>`;
+      });
+
+    HistoryStore.addTool('ip', ip, resources);
+    renderHistory();
+  });
+
+  // ── Network helper tools ─────────────────────────────────
+  const helpersEl = document.getElementById('t-helpers');
+
+  const HELPERS = [
+    {
+      id: 'cidr', name: 'IP RANGE / CIDR CALCULATOR',
+      inputPlaceholder: '192.168.1.0/24',
+      btnLabel: 'CALCULATE',
+      run(v) {
+        const r = _calcCIDR(v);
+        if (!r) return '<div class="tool-err-msg">Enter valid CIDR notation, e.g. 192.168.1.0/24</div>';
+        return _toolTable(['FIELD','VALUE'], [
+          ['Network Address', r.network], ['Broadcast Address', r.broadcast],
+          ['First Usable IP', r.first],   ['Last Usable IP', r.last],
+          ['Total Hosts', r.hosts.toLocaleString()], ['Subnet Mask', r.mask], ['Wildcard Mask', r.wildcard],
+        ]);
+      },
+    },
+    {
+      id: 'ipconv', name: 'IP TO HEX / BINARY CONVERTER',
+      inputPlaceholder: '8.8.8.8',
+      btnLabel: 'CONVERT',
+      run(v) {
+        const r = _convertIP(v);
+        if (!r) return '<div class="tool-err-msg">Enter a valid IPv4 address</div>';
+        return _toolTable(['FORMAT','VALUE'], [
+          ['Decimal',      r.decimal], ['Hexadecimal', r.hex],
+          ['Binary',       r.binary],  ['Integer',     r.integer],
+          ['Reverse DNS',  r.rdns],
+        ]);
+      },
+    },
+    {
+      id: 'port', name: 'PORT REFERENCE',
+      inputPlaceholder: '443',
+      btnLabel: 'LOOKUP',
+      run(v) {
+        const p = parseInt(v);
+        if (isNaN(p) || p < 1 || p > 65535) return '<div class="tool-err-msg">Enter a port number between 1 and 65535</div>';
+        const rec = PORT_DB[p];
+        if (!rec) return `<div class="tool-no-data">No common service found for port ${p} — may be custom or ephemeral.<br><br>` +
+          `<a href="https://www.shodan.io/search?query=port%3A${p}" target="_blank" rel="noopener">Search on Shodan</a> · ` +
+          `<a href="https://search.censys.io/search?resource=hosts&q=services.port%3A${p}" target="_blank" rel="noopener">Search on Censys</a></div>`;
+        const riskColor = rec.risk === 'High' ? 'var(--color-danger)' : rec.risk === 'Elevated' ? 'var(--color-primary)' : 'var(--color-secondary)';
+        return _toolTable(['FIELD','VALUE'], [
+          ['Service',  rec.name], ['Protocol', rec.proto],
+          ['Risk',     `<span style="color:${riskColor};font-weight:700">${rec.risk}</span>`],
+          ['Description', rec.desc],
+          ['Search',   `<a href="https://www.shodan.io/search?query=port%3A${p}" target="_blank" rel="noopener">Shodan</a> · <a href="https://search.censys.io/search?resource=hosts&q=services.port%3A${p}" target="_blank" rel="noopener">Censys</a>`],
+        ]);
+      },
+    },
+    {
+      id: 'ua', name: 'USER AGENT PARSER',
+      inputPlaceholder: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)...',
+      btnLabel: 'PARSE',
+      isTextarea: true,
+      run(v) {
+        const r = _parseUA(v);
+        if (!r) return '<div class="tool-err-msg">Paste a User-Agent string to parse</div>';
+        return _toolTable(['FIELD','VALUE'], [
+          ['Browser',       r.browser], ['Browser Engine', r.engine],
+          ['Operating System', r.os],  ['Device Type',    r.device],
+          ['Bot / Crawler', r.isBot ? '<span style="color:var(--color-danger)">Yes</span>' : 'No'],
+          ['Raw String',    `<code style="word-break:break-all;font-size:10px">${_esc(v)}</code>`],
+        ]);
+      },
+    },
+  ];
+
+  helpersEl.innerHTML = HELPERS.map(h => `
+    <div class="tool-helper" id="th-${h.id}">
+      <div class="tool-helper-name">${h.name}</div>
+      <div class="tool-helper-row">
+        ${h.isTextarea
+          ? `<textarea class="tool-input tool-input-ta" id="th-in-${h.id}" placeholder="${_esc(h.inputPlaceholder)}" rows="2"></textarea>`
+          : `<input type="text" class="tool-input" id="th-in-${h.id}" placeholder="${_esc(h.inputPlaceholder)}" autocomplete="off" spellcheck="false">`
+        }
+        <button class="tool-btn tool-helper-btn" id="th-btn-${h.id}">${h.btnLabel}</button>
+      </div>
+      <div class="tool-out" id="th-out-${h.id}" hidden></div>
+    </div>
+  `).join('');
+
+  HELPERS.forEach(h => {
+    const inp = document.getElementById(`th-in-${h.id}`);
+    const btn = document.getElementById(`th-btn-${h.id}`);
+    const out = document.getElementById(`th-out-${h.id}`);
+    btn.addEventListener('click', () => {
+      const val = inp.value.trim();
+      if (!val) return;
+      _toolShowOutput(out, h.run(val));
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !h.isTextarea) btn.click(); });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -6581,6 +7600,7 @@ document.addEventListener('DOMContentLoaded', () => {
   TemplateManager.init();
   renderHistory();
   initLearn();
+  initTools();
   initMobile();
   DorkWizard.init();
   initOperatorTooltip();
