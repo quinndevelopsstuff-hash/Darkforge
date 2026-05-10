@@ -665,7 +665,7 @@ const HistoryStore = {
   clear() { this.save([]); },
 
   addTool(toolType, input, resources) {
-    const labels = { image: 'IMAGE RECON', email: 'EMAIL RECON', username: 'USERNAME RECON', ip: 'IP RECON' };
+    const labels = { image: 'IMAGE RECON', email: 'EMAIL RECON', username: 'USERNAME RECON', ip: 'IP RECON', scrubber: 'METADATA SCAN', hash: 'HASH TOOL' };
     const entries = this.load();
     entries.unshift({
       id: Date.now(),
@@ -6943,31 +6943,33 @@ function initTools() {
   _buildImageSection();
   _buildEmailSection();
   _buildNetworkSection();
+  _buildScrubberSection();
+  _buildHashSection();
 
-  // Secondary nav: scroll-to + IntersectionObserver active state
+  // True tab switching — one section visible at a time
+  const TOOL_TAB_KEY = 'df_tool_tab';
   const btns = document.querySelectorAll('[data-tsec]');
-  const secs  = document.querySelectorAll('.tool-section');
-
-  btns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('tool-section-' + btn.dataset.tsec)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+  const secMap = {};
+  document.querySelectorAll('.tool-section').forEach(s => {
+    secMap[s.id.replace('tool-section-', '')] = s;
   });
 
-  if ('IntersectionObserver' in window) {
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const id = e.target.id.replace('tool-section-', '');
-          btns.forEach(b => b.classList.toggle('lsnav-active', b.dataset.tsec === id));
-        }
-      });
-    }, { threshold: 0.25 });
-    secs.forEach(s => obs.observe(s));
+  function _switchToolTab(id) {
+    btns.forEach(b => b.classList.toggle('lsnav-active', b.dataset.tsec === id));
+    Object.keys(secMap).forEach(k => { secMap[k].hidden = (k !== id); });
+    try { sessionStorage.setItem(TOOL_TAB_KEY, id); } catch {}
   }
 
-  // Restore session state
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => _switchToolTab(btn.dataset.tsec));
+  });
+
+  // Restore saved tab or default to image
+  const savedTab = (() => { try { return sessionStorage.getItem(TOOL_TAB_KEY); } catch { return null; } })();
+  const startTab = (savedTab && secMap[savedTab]) ? savedTab : 'image';
+  _switchToolTab(startTab);
+
+  // Restore session input state
   [['t-imgurl','img'],['t-exifurl','exif'],['t-email','email'],
    ['t-username','username'],['t-ip','ip']].forEach(([id, key]) => {
     const el  = document.getElementById(id);
@@ -7585,6 +7587,737 @@ function _buildNetworkSection() {
       _toolShowOutput(out, h.run(val));
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !h.isTextarea) btn.click(); });
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOOL 4 — METADATA SCRUBBER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const SCRUB_EXIF_RISK = {
+  GPSLatitude:     { level:'HIGH',   note:'Reveals precise location' },
+  GPSLongitude:    { level:'HIGH',   note:'Reveals precise location' },
+  GPSAltitude:     { level:'MEDIUM', note:'Reveals elevation' },
+  GPSImgDirection: { level:'MEDIUM', note:'Reveals camera direction' },
+  Artist:          { level:'HIGH',   note:'Reveals real name' },
+  Copyright:       { level:'HIGH',   note:'May reveal real name' },
+  ImageDescription:{ level:'MEDIUM', note:'May contain personal info' },
+  Make:            { level:'MEDIUM', note:'Identifies device brand' },
+  Model:           { level:'MEDIUM', note:'Identifies specific device' },
+  DateTimeOriginal:{ level:'MEDIUM', note:'Reveals when taken' },
+  DateTime:        { level:'MEDIUM', note:'Reveals modification date' },
+  DateTimeDigitized:{ level:'MEDIUM',note:'Reveals digitizing date' },
+  Software:        { level:'LOW',    note:'Reveals editing software' },
+  ImageWidth:      { level:'LOW',    note:'Technical dimension' },
+  ImageLength:     { level:'LOW',    note:'Technical dimension' },
+  Orientation:     { level:'LOW',    note:'Camera orientation' },
+  ExposureTime:    { level:'LOW',    note:'Camera settings' },
+  FNumber:         { level:'LOW',    note:'Camera settings' },
+  ISOSpeedRatings: { level:'LOW',    note:'Camera settings' },
+  Flash:           { level:'LOW',    note:'Camera settings' },
+  FocalLength:     { level:'LOW',    note:'Camera settings' },
+  ColorSpace:      { level:'LOW',    note:'Color profile' },
+};
+
+const SCRUB_PDF_FIELDS = [
+  ['/Title',        'Title',         'LOW'],
+  ['/Author',       'Author',        'HIGH'],
+  ['/Subject',      'Subject',       'LOW'],
+  ['/Keywords',     'Keywords',      'LOW'],
+  ['/Creator',      'Creator',       'MEDIUM'],
+  ['/Producer',     'Producer',      'MEDIUM'],
+  ['/CreationDate', 'Creation Date', 'MEDIUM'],
+  ['/ModDate',      'Modified Date', 'MEDIUM'],
+];
+
+const SCRUB_CORE_FIELDS = [
+  ['dc:creator',       'Creator / Author',   'HIGH'],
+  ['cp:lastModifiedBy','Last Modified By',   'HIGH'],
+  ['cp:revision',      'Revision Number',    'LOW'],
+  ['dcterms:created',  'Created Date',       'MEDIUM'],
+  ['dcterms:modified', 'Modified Date',      'MEDIUM'],
+  ['dc:description',   'Description',        'LOW'],
+  ['dc:subject',       'Subject',            'LOW'],
+  ['dc:title',         'Title',              'LOW'],
+];
+
+const SCRUB_APP_FIELDS = [
+  ['Application', 'Application', 'LOW'],
+  ['Company',     'Company',     'HIGH'],
+  ['Template',    'Template',    'MEDIUM'],
+  ['Manager',     'Manager',     'HIGH'],
+];
+
+function _scrubRiskBadge(level) {
+  const map = { HIGH:'scrub-risk-high', MEDIUM:'scrub-risk-med', LOW:'scrub-risk-low' };
+  return `<span class="scrub-risk ${map[level] || 'scrub-risk-low'}">${level}</span>`;
+}
+
+function _scrubSummary(fields) {
+  const h = fields.filter(f => f.risk === 'HIGH').length;
+  const m = fields.filter(f => f.risk === 'MEDIUM').length;
+  const l = fields.filter(f => f.risk === 'LOW').length;
+  return `<div class="scrub-summary">
+    <span>${fields.length} FIELDS FOUND</span> —
+    <span class="scrub-risk-high">${h} HIGH RISK</span> /
+    <span class="scrub-risk-med">${m} MEDIUM</span> /
+    <span class="scrub-risk-low">${l} LOW</span>
+  </div>`;
+}
+
+function _scrubTable(fields, outEl, filename) {
+  if (!fields.length) {
+    outEl.innerHTML = '<div class="tool-no-data">THIS FILE APPEARS CLEAN — no readable metadata found.<br><small style="opacity:.6">Some metadata may be embedded in ways this tool cannot detect.</small></div>';
+    return;
+  }
+  const h = fields.filter(f => f.risk === 'HIGH').length;
+  const m = fields.filter(f => f.risk === 'MEDIUM').length;
+  const l = fields.filter(f => f.risk === 'LOW').length;
+  let html = _scrubSummary(fields);
+  html += '<table class="tool-data-table scrub-table"><thead><tr><th>FIELD</th><th>VALUE</th><th>RISK</th><th>NOTE</th></tr></thead><tbody>';
+  fields.forEach((f, i) => {
+    html += `<tr class="${i%2?'tool-tr-alt':''}">
+      <td class="tool-td-key">${_esc(f.label)}</td>
+      <td>${_esc(String(f.value))}</td>
+      <td>${_scrubRiskBadge(f.risk)}</td>
+      <td class="scrub-note">${_esc(f.note||'')}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (filename) {
+    const riskLabel = h > 0 ? 'METADATA SCAN — HIGH RISK' : m > 0 ? 'METADATA SCAN — MEDIUM RISK' : 'METADATA SCAN — CLEAN';
+    HistoryStore.addTool('scrubber', filename, [{ label: riskLabel, url: '#', desc: `${fields.length} fields: ${h} HIGH / ${m} MEDIUM / ${l} LOW` }]);
+    renderHistory();
+  }
+  outEl.innerHTML = html;
+}
+
+function _parsePDFMeta(buffer) {
+  const text = new TextDecoder('latin1').decode(new Uint8Array(buffer.slice(0, 16384)));
+  const fields = [];
+  for (const [key, label, risk] of SCRUB_PDF_FIELDS) {
+    const re = new RegExp(key.replace('/', '\\/') + '\\s*\\(([^)\\r\\n]{0,200})\\)');
+    const m = text.match(re);
+    if (m && m[1].trim()) fields.push({ label, value: m[1].replace(/\\r|\\n/g,'').trim(), risk, note: risk === 'HIGH' ? 'Reveals identity' : risk === 'MEDIUM' ? 'Reveals history' : 'Informational' });
+  }
+  return fields;
+}
+
+function _parseID3(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const fields = [];
+  if (!(bytes[0]===0x49 && bytes[1]===0x44 && bytes[2]===0x33)) return fields;
+  const FRAMES = { TIT2:['Title','LOW'], TPE1:['Artist','HIGH'], TALB:['Album','LOW'], TDRC:['Year','MEDIUM'], TCOM:['Composer','HIGH'], TENC:['Encoder','LOW'], COMM:['Comment','MEDIUM'] };
+  let pos = 10;
+  const size = ((bytes[6]&0x7f)<<21)|((bytes[7]&0x7f)<<14)|((bytes[8]&0x7f)<<7)|(bytes[9]&0x7f);
+  const end = Math.min(10 + size, bytes.length);
+  while (pos + 10 < end) {
+    const frameId = String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2],bytes[pos+3]);
+    const frameSize = (bytes[pos+4]<<24)|(bytes[pos+5]<<16)|(bytes[pos+6]<<8)|bytes[pos+7];
+    if (!frameSize || frameSize > 4096) break;
+    if (FRAMES[frameId]) {
+      try {
+        const enc = bytes[pos+10];
+        const raw = buffer.slice(pos+11, pos+10+frameSize);
+        const val = (enc===1||enc===2) ? new TextDecoder('utf-16').decode(raw) : new TextDecoder('latin1').decode(raw);
+        const clean = val.replace(/\x00/g,'').trim();
+        if (clean) fields.push({ label:FRAMES[frameId][0], value:clean, risk:FRAMES[frameId][1], note: FRAMES[frameId][1]==='HIGH'?'Reveals identity':'Informational' });
+      } catch {}
+    }
+    pos += 10 + frameSize;
+  }
+  return fields;
+}
+
+async function _parseOfficeMeta(file) {
+  if (!window.JSZip) throw new Error('JSZip not available');
+  const zip = await window.JSZip.loadAsync(file);
+  const fields = [];
+  const xmlParse = (xml, tagDefs) => {
+    for (const [tag, label, risk] of tagDefs) {
+      const re = new RegExp('<' + tag + '[^>]*>([^<]{0,300})</' + tag + '>');
+      const m = xml.match(re);
+      if (m && m[1].trim()) fields.push({ label, value: m[1].trim(), risk, note: risk==='HIGH'?'Reveals identity':risk==='MEDIUM'?'Reveals history':'Informational' });
+    }
+  };
+  const coreFile = zip.file('docProps/core.xml');
+  if (coreFile) { const xml = await coreFile.async('text'); xmlParse(xml, SCRUB_CORE_FIELDS); }
+  const appFile = zip.file('docProps/app.xml');
+  if (appFile) { const xml = await appFile.async('text'); xmlParse(xml, SCRUB_APP_FIELDS); }
+  return fields;
+}
+
+const SCRUB_GUIDE = [
+  {
+    type: 'IMAGES (.jpg .png .gif .webp)',
+    steps: [
+      'Windows: Right-click > Properties > Details > Remove Properties and Personal Information',
+      'Mac: ImageOptim (free app at imageoptim.com) — drag and drop to strip all metadata',
+      'Linux: <code>exiftool -all= filename.jpg</code>',
+      'Online: exifpurge.com or exif.regex.info/del.pl',
+      'Quick fix: Take a screenshot of the image — screenshots contain no EXIF data',
+    ],
+    note: 'Re-saving in Paint (Windows) strips most EXIF. Photos taken as screenshots contain no location data.',
+  },
+  {
+    type: 'PDF FILES',
+    steps: [
+      'Adobe Acrobat: File > Properties — clear all fields, then File > Save As',
+      'Free method: Print to PDF via system print dialog — strips most metadata',
+      'Online: ilovepdf.com > PDF Metadata Remover',
+      'LibreOffice: open PDF, File > Export as PDF — metadata fields will be empty by default',
+    ],
+    note: 'Printing to PDF is the most reliable free method for removing PDF metadata.',
+  },
+  {
+    type: 'OFFICE DOCUMENTS (.docx .xlsx .pptx)',
+    steps: [
+      'Word/Excel/PowerPoint: File > Info > Check for Issues > Inspect Document > Remove All',
+      'Then: File > Save As to create a clean copy',
+      'Alternative: copy all content into a brand new blank document',
+      'Note: Accept or reject all tracked changes before sharing — they contain edit history',
+    ],
+    note: 'Track changes, comments, and revision history also contain metadata — inspect before sharing.',
+  },
+  {
+    type: 'AUDIO FILES (.mp3)',
+    steps: [
+      'Windows: Right-click > Properties > Details > Remove Properties',
+      'Mp3tag (free): select all tags, delete — mp3tag.de',
+      'Online: id3editor.com',
+      'Linux: <code>eyeD3 --remove-all filename.mp3</code>',
+    ],
+    note: 'ID3 tags in MP3 files can contain artist name, album, year, and comments.',
+  },
+  {
+    type: 'VIDEO FILES (.mp4 .mov)',
+    steps: [
+      'Handbrake (free): re-encode the file — strips most metadata — handbrake.fr',
+      'FFmpeg: <code>ffmpeg -i input.mp4 -map_metadata -1 output.mp4</code>',
+      'Note: re-encoding slightly changes quality — use lossless settings if quality matters',
+    ],
+    note: 'Video files can embed GPS coordinates, device info, and creation timestamps.',
+  },
+];
+
+function _buildScrubberSection() {
+  const sec = document.getElementById('tool-section-scrubber');
+  if (!sec) return;
+
+  sec.innerHTML = `
+    <div class="tool-panel-hdr">
+      <span class="tool-panel-title">METADATA SCRUBBER</span>
+      <span class="tool-panel-desc">Analyze metadata in your own files locally. Nothing leaves your browser.</span>
+    </div>
+    <div class="tool-pair">
+      <!-- Sub-section A: File Analyzer -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">FILE METADATA ANALYZER</div>
+        <div class="tool-sub-desc">Drag a file or click to analyze. Supports images, PDFs, Office docs, audio, and video.</div>
+        <div class="scrub-local-notice">YOUR FILE IS NEVER UPLOADED — ALL ANALYSIS HAPPENS IN YOUR BROWSER</div>
+        <div class="tool-drop scrub-drop" id="scrub-drop" tabindex="0" style="cursor:pointer;position:relative">
+          <span id="scrub-drop-label">DROP ANY FILE HERE OR CLICK TO BROWSE</span>
+          <div style="font-size:10px;opacity:.5;margin-top:4px">.jpg .png .gif .webp .pdf .docx .xlsx .pptx .mp3 .mp4 .mov</div>
+          <input type="file" id="scrub-file-input"
+            accept=".jpg,.jpeg,.png,.gif,.webp,.tiff,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp3,.mp4,.mov"
+            style="display:none;pointer-events:none;">
+        </div>
+        <div class="tool-out" id="scrub-out"></div>
+      </div>
+      <!-- Sub-section B: Removal Guide -->
+      <div class="tool-sub">
+        <div class="tool-sub-name">REMOVAL GUIDE</div>
+        <div class="tool-sub-desc">How to remove metadata from each file type — free tools only.</div>
+        <div id="scrub-guide" class="scrub-guide"></div>
+      </div>
+    </div>
+  `;
+
+  // Build removal guide
+  const guideEl = document.getElementById('scrub-guide');
+  guideEl.innerHTML = SCRUB_GUIDE.map((g, i) => `
+    <div class="scrub-guide-section">
+      <button class="scrub-guide-hdr" data-gi="${i}" aria-expanded="${i===0}">
+        <span>${_esc(g.type)}</span><span class="scrub-guide-arrow">${i===0?'▲':'▼'}</span>
+      </button>
+      <div class="scrub-guide-body" id="scrub-guide-body-${i}" ${i===0?'':'hidden'}>
+        <ol class="scrub-guide-steps">
+          ${g.steps.map(s => `<li>${s}</li>`).join('')}
+        </ol>
+        <div class="scrub-guide-note">${_esc(g.note)}</div>
+      </div>
+    </div>`).join('');
+
+  guideEl.querySelectorAll('.scrub-guide-hdr').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const gi = btn.dataset.gi;
+      const body = document.getElementById('scrub-guide-body-' + gi);
+      const open = !body.hidden;
+      body.hidden = open;
+      btn.setAttribute('aria-expanded', String(!open));
+      btn.querySelector('.scrub-guide-arrow').textContent = open ? '▼' : '▲';
+    });
+  });
+
+  // File drop/click logic
+  const dropZone   = document.getElementById('scrub-drop');
+  const fileInput  = document.getElementById('scrub-file-input');
+  const outEl      = document.getElementById('scrub-out');
+
+  dropZone.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+  fileInput.addEventListener('click', e => e.stopPropagation());
+
+  ['dragover','dragenter'].forEach(ev => {
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('tool-drop-hover'); });
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('tool-drop-hover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('tool-drop-hover');
+    const file = e.dataTransfer.files[0];
+    if (file) _analyzeScrubFile(file, outEl);
+  });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (file) _analyzeScrubFile(file, outEl);
+  });
+}
+
+function _analyzeScrubFile(file, outEl) {
+  outEl.style.display = 'block';
+  outEl.style.opacity = '1';
+  outEl.innerHTML = `<div class="tool-loading">ANALYZING ${_esc(file.name)}<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
+
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const isImage = /^(jpe?g|png|gif|webp|bmp|tiff?)$/.test(ext);
+  const isPDF   = ext === 'pdf';
+  const isOffice= /^(docx|xlsx|pptx)$/.test(ext);
+  const isAudio = ext === 'mp3';
+  const isVideo = /^(mp4|mov)$/.test(ext);
+
+  if (isImage) {
+    _loadExifJs().then(() => {
+      const objUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function() {
+        window.EXIF.getData(this, function() {
+          URL.revokeObjectURL(objUrl);
+          const tags = window.EXIF.getAllTags(this);
+          const FIELDS = Object.keys(SCRUB_EXIF_RISK);
+          const found = [];
+          for (const key of FIELDS) {
+            const val = tags[key];
+            if (val === undefined || val === null || val === '') continue;
+            let display = String(val);
+            if (key === 'GPSLatitude' && tags.GPSLatitudeRef) {
+              const dec = _gpsDecimal(val, tags.GPSLatitudeRef);
+              if (dec !== null) display = dec.toFixed(6) + '°';
+            } else if (key === 'GPSLongitude' && tags.GPSLongitudeRef) {
+              const dec = _gpsDecimal(val, tags.GPSLongitudeRef);
+              if (dec !== null) display = dec.toFixed(6) + '°';
+            } else if (key === 'ExposureTime' && typeof val === 'number') {
+              display = '1/' + Math.round(1/val) + 's';
+            } else if (key === 'FNumber' && typeof val === 'number') {
+              display = 'f/' + val;
+            } else if (key === 'FocalLength' && typeof val === 'number') {
+              display = val + 'mm';
+            }
+            found.push({ label: key, value: display, risk: SCRUB_EXIF_RISK[key].level, note: SCRUB_EXIF_RISK[key].note });
+          }
+          _scrubTable(found, outEl, file.name);
+        });
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); outEl.innerHTML = '<div class="tool-err-msg">Could not read image file.</div>'; };
+      img.src = objUrl;
+    }).catch(() => { outEl.innerHTML = '<div class="tool-err-msg">Could not load EXIF library.</div>'; });
+
+  } else if (isPDF) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const fields = _parsePDFMeta(e.target.result);
+      _scrubTable(fields, outEl, file.name);
+    };
+    reader.onerror = () => { outEl.innerHTML = '<div class="tool-err-msg">Could not read PDF.</div>'; };
+    reader.readAsArrayBuffer(file);
+
+  } else if (isOffice) {
+    if (!window.JSZip) {
+      outEl.innerHTML = '<div class="tool-err-msg">JSZip library not loaded — check network connection.</div>';
+      return;
+    }
+    _parseOfficeMeta(file).then(fields => {
+      _scrubTable(fields, outEl, file.name);
+    }).catch(() => { outEl.innerHTML = '<div class="tool-err-msg">Could not parse Office file — ensure it is a valid .docx/.xlsx/.pptx.</div>'; });
+
+  } else if (isAudio) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const fields = _parseID3(e.target.result);
+      _scrubTable(fields, outEl, file.name);
+    };
+    reader.onerror = () => { outEl.innerHTML = '<div class="tool-err-msg">Could not read audio file.</div>'; };
+    reader.readAsArrayBuffer(file);
+
+  } else if (isVideo) {
+    outEl.innerHTML = '<div class="tool-no-data">Video metadata parsing is limited in-browser.<br>Use FFmpeg to inspect: <code>ffmpeg -i input.mp4</code><br>See the Removal Guide for stripping methods.</div>';
+  } else {
+    outEl.innerHTML = '<div class="tool-no-data">Unsupported file type. Try an image, PDF, or Office document.</div>';
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOOL 5 — HASH TOOLS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const HASH_SIGS = [
+  { re: /^[0-9a-f]{32}$/i,    names:['MD5','NTLM'],          conf:'LIKELY',    crack:'YES',       desc:'MD5: widely used, easily crackable. NTLM: Windows password hash.' },
+  { re: /^[0-9a-f]{40}$/i,    names:['SHA1'],                conf:'CONFIDENT', crack:'YES',       desc:'SHA1: deprecated for security use, common in file integrity checks.' },
+  { re: /^[0-9a-f]{56}$/i,    names:['SHA224'],              conf:'CONFIDENT', crack:'DIFFICULT', desc:'SHA224: truncated SHA256 variant, rarely used for passwords.' },
+  { re: /^[0-9a-f]{64}$/i,    names:['SHA256'],              conf:'CONFIDENT', crack:'DIFFICULT', desc:'SHA256: standard secure hash, used in certificates and file integrity.' },
+  { re: /^[0-9a-f]{96}$/i,    names:['SHA384'],              conf:'CONFIDENT', crack:'DIFFICULT', desc:'SHA384: extended SHA2 family, used in TLS and digital signatures.' },
+  { re: /^[0-9a-f]{128}$/i,   names:['SHA512'],              conf:'CONFIDENT', crack:'DIFFICULT', desc:'SHA512: strongest SHA2 variant, used for high-security applications.' },
+  { re: /^\$2[aby]\$\d{2}\$.{53}$/, names:['bcrypt'],        conf:'CONFIDENT', crack:'VERY HARD', desc:'bcrypt: adaptive hashing algorithm, widely used for passwords.' },
+  { re: /^\$1\$/,             names:['MD5 Crypt'],           conf:'CONFIDENT', crack:'YES',       desc:'MD5 Crypt: Unix password hash, common in older Linux systems.' },
+  { re: /^\$5\$/,             names:['SHA256 Crypt'],        conf:'CONFIDENT', crack:'DIFFICULT', desc:'SHA256 Crypt: Unix shadow password format.' },
+  { re: /^\$6\$/,             names:['SHA512 Crypt'],        conf:'CONFIDENT', crack:'DIFFICULT', desc:'SHA512 Crypt: strong Unix password format, used in modern Linux.' },
+  { re: /^\$apr1\$/,          names:['Apache MD5'],          conf:'CONFIDENT', crack:'YES',       desc:'Apache-specific MD5 variant used in .htpasswd files.' },
+  { re: /^\$P\$|^\$H\$/,      names:['phpass (WordPress)'], conf:'CONFIDENT', crack:'DIFFICULT', desc:'Portable PHP password hash, used by WordPress and phpBB.' },
+  { re: /^\$S\$/,             names:['Drupal SHA512'],       conf:'CONFIDENT', crack:'DIFFICULT', desc:'Drupal password hash, SHA512 based.' },
+  { re: /^sha1\$/,            names:['Django SHA1'],         conf:'CONFIDENT', crack:'YES',       desc:'Django legacy SHA1 password hash.' },
+  { re: /^pbkdf2/i,           names:['PBKDF2'],              conf:'CONFIDENT', crack:'VERY HARD', desc:'Key derivation function, used by Django, iOS, WPA2.' },
+  { re: /^\*[0-9a-f]{40}$/i,  names:['MySQL 4.1+'],          conf:'CONFIDENT', crack:'YES',       desc:'MySQL password hash format used since version 4.1.' },
+  { re: /^[0-9a-f]{16}$/i,    names:['MySQL 3.x','Half-MD5'],conf:'POSSIBLE',  crack:'YES',       desc:'Short hex hash — could be old MySQL or truncated MD5.' },
+  { re: /^[0-9]{10}$/,        names:['CRC32'],               conf:'POSSIBLE',  crack:'N/A',       desc:'10-digit number may be a CRC32 checksum used for file integrity.' },
+  { re: /^[0-9a-f]{13}$/i,    names:['DES Crypt'],           conf:'LIKELY',    crack:'YES',       desc:'Legacy Unix DES password hash, 13 character format.' },
+];
+
+function _identifyHash(h) {
+  h = h.trim();
+  const matches = [];
+  for (const sig of HASH_SIGS) {
+    if (sig.re.test(h)) matches.push(sig);
+  }
+  return matches;
+}
+
+async function _sha(algo, data) {
+  const buf = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  const hashBuf = await crypto.subtle.digest(algo, buf);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function _md5(str) {
+  if (window.SparkMD5) return window.SparkMD5.hash(str);
+  return '[MD5 library not loaded]';
+}
+
+function _hexDiff(a, b) {
+  let ha = '', hb = '';
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const ca = a[i] || '';
+    const cb = b[i] || '';
+    if (ca === cb) {
+      ha += `<span class="hdiff-same">${_esc(ca)}</span>`;
+      hb += `<span class="hdiff-same">${_esc(cb)}</span>`;
+    } else {
+      ha += `<span class="hdiff-diff">${_esc(ca||'_')}</span>`;
+      hb += `<span class="hdiff-diff">${_esc(cb||'_')}</span>`;
+    }
+  }
+  return [ha, hb];
+}
+
+function _buildHashSection() {
+  const sec = document.getElementById('tool-section-hash');
+  if (!sec) return;
+
+  sec.innerHTML = `
+    <div class="tool-panel-hdr">
+      <span class="tool-panel-title">HASH TOOLS</span>
+      <span class="tool-panel-desc">Identify, generate, and look up hash strings for OSINT and security research.</span>
+    </div>
+    <nav class="tool-hash-tabs" id="hash-tabs" aria-label="Hash tool sections">
+      <button class="tool-hash-tab hash-tab-active" data-htab="identify">IDENTIFY</button>
+      <button class="tool-hash-tab" data-htab="generate">GENERATE</button>
+      <button class="tool-hash-tab" data-htab="lookup">LOOKUP</button>
+      <button class="tool-hash-tab" data-htab="compare">COMPARE</button>
+    </nav>
+    <div id="hash-panel-identify" class="hash-panel"></div>
+    <div id="hash-panel-generate" class="hash-panel" hidden></div>
+    <div id="hash-panel-lookup"   class="hash-panel" hidden></div>
+    <div id="hash-panel-compare"  class="hash-panel" hidden></div>
+  `;
+
+  const hashTabBtns = sec.querySelectorAll('[data-htab]');
+  const hashPanels = {};
+  sec.querySelectorAll('.hash-panel').forEach(p => { hashPanels[p.id.replace('hash-panel-','')] = p; });
+
+  function _switchHashTab(id) {
+    hashTabBtns.forEach(t => t.classList.toggle('hash-tab-active', t.dataset.htab === id));
+    Object.keys(hashPanels).forEach(k => { hashPanels[k].hidden = k !== id; });
+  }
+  hashTabBtns.forEach(t => t.addEventListener('click', () => _switchHashTab(t.dataset.htab)));
+
+  _buildHashIdentify(hashPanels.identify);
+  _buildHashGenerate(hashPanels.generate);
+  _buildHashLookup(hashPanels.lookup);
+  _buildHashCompare(hashPanels.compare);
+}
+
+function _buildHashIdentify(panel) {
+  panel.innerHTML = `
+    <div class="hash-sub">
+      <div class="tool-sub-name">HASH IDENTIFIER</div>
+      <div class="tool-sub-desc">Paste any hash string to identify its algorithm</div>
+      <div class="tool-helper-row">
+        <input type="text" class="tool-input" id="hi-input" placeholder="Paste hash string here…" autocomplete="off" spellcheck="false">
+        <button class="tool-btn tool-helper-btn" id="hi-btn">IDENTIFY</button>
+      </div>
+      <div class="tool-out" id="hi-out"></div>
+    </div>
+  `;
+  const inp = document.getElementById('hi-input');
+  const btn = document.getElementById('hi-btn');
+  const out = document.getElementById('hi-out');
+
+  const run = () => {
+    const h = inp.value.trim();
+    if (!h) return;
+    const matches = _identifyHash(h);
+    out.style.display = 'block'; out.style.opacity = '1';
+    if (!matches.length) {
+      out.innerHTML = `<div class="hash-result-unknown">
+        <div class="hash-result-label">UNKNOWN HASH FORMAT</div>
+        <div class="hash-result-meta">Length: ${h.length} characters — Character set: ${/^[0-9a-f]+$/i.test(h)?'hexadecimal':/^[A-Za-z0-9+/=]+$/.test(h)?'base64':'mixed/alphanumeric'}</div>
+        <div class="hash-result-hint">Check if the string is truncated, encoded, or has extra whitespace.</div>
+      </div>`;
+    } else {
+      out.innerHTML = matches.map(m => `
+        <div class="hash-result-card hash-result-${m.conf.toLowerCase()}">
+          <div class="hash-result-hdr">
+            <span class="hash-result-name">${m.names.join(' / ')}</span>
+            <span class="hash-result-conf hash-conf-${m.conf.toLowerCase()}">${m.conf} MATCH</span>
+          </div>
+          <div class="hash-result-desc">${_esc(m.desc)}</div>
+          <div class="hash-result-meta">
+            Crackable: <strong>${m.crack}</strong>
+          </div>
+        </div>`).join('');
+    }
+    HistoryStore.addTool('hash', h.slice(0,20) + (h.length>20?'…':''), [{ label:'HASH IDENTIFIED: ' + (matches[0]?.names[0]||'UNKNOWN'), url:'#', desc:'' }]);
+    renderHistory();
+  };
+  btn.addEventListener('click', run);
+  inp.addEventListener('keydown', e => { if (e.key==='Enter') run(); });
+}
+
+function _buildHashGenerate(panel) {
+  panel.innerHTML = `
+    <div class="tool-pair">
+      <div class="hash-sub">
+        <div class="tool-sub-name">TEXT HASHING</div>
+        <div class="tool-sub-desc">Generate a hash of any text string</div>
+        <textarea class="tool-input tool-input-ta" id="hg-input" placeholder="Enter text to hash…" rows="3"></textarea>
+        <div class="tool-helper-row" style="gap:8px">
+          <select class="op-select" id="hg-algo" style="flex:1;height:44px">
+            <option value="MD5">MD5</option>
+            <option value="SHA-1">SHA1</option>
+            <option value="SHA-256" selected>SHA256</option>
+            <option value="SHA-384">SHA384</option>
+            <option value="SHA-512">SHA512</option>
+            <option value="SHA-224">SHA224</option>
+          </select>
+          <button class="tool-btn tool-helper-btn" id="hg-btn">GENERATE</button>
+        </div>
+        <div class="tool-out" id="hg-out"></div>
+      </div>
+      <div class="hash-sub">
+        <div class="tool-sub-name">FILE HASHING</div>
+        <div class="tool-sub-desc">Generate a hash of any file to verify integrity</div>
+        <div class="tool-drop" id="hg-file-drop" tabindex="0" style="cursor:pointer;position:relative">
+          DROP FILE HERE OR CLICK TO BROWSE
+          <input type="file" id="hg-file-input" style="display:none;pointer-events:none;">
+        </div>
+        <div class="tool-helper-row" style="gap:8px;margin-top:8px">
+          <select class="op-select" id="hg-file-algo" style="flex:1;height:44px">
+            <option value="SHA-256" selected>SHA256</option>
+            <option value="SHA-1">SHA1</option>
+            <option value="SHA-512">SHA512</option>
+            <option value="SHA-384">SHA384</option>
+          </select>
+        </div>
+        <div class="tool-out" id="hg-file-out"></div>
+      </div>
+    </div>
+  `;
+
+  // Text hashing
+  const inp = document.getElementById('hg-input');
+  const algoSel = document.getElementById('hg-algo');
+  const btn = document.getElementById('hg-btn');
+  const out = document.getElementById('hg-out');
+
+  btn.addEventListener('click', async () => {
+    const text = inp.value;
+    const algo = algoSel.value;
+    if (!text) return;
+    out.style.display = 'block'; out.style.opacity = '1';
+    out.innerHTML = '<div class="tool-loading">COMPUTING<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+    try {
+      const hash = algo === 'MD5' ? _md5(text) : await _sha(algo, text);
+      out.innerHTML = `
+        <div class="hash-output">
+          <div class="hash-output-label">${algo} — ${hash.length} characters</div>
+          <div class="hash-output-val" id="hg-result">${_esc(hash)}</div>
+          <button class="tool-btn tool-btn-sm" id="hg-copy">COPY HASH</button>
+        </div>`;
+      document.getElementById('hg-copy')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(hash).then(() => {
+          document.getElementById('hg-copy').textContent = 'COPIED';
+          setTimeout(() => { const el = document.getElementById('hg-copy'); if (el) el.textContent = 'COPY HASH'; }, 1500);
+        });
+      });
+      HistoryStore.addTool('hash', text.slice(0,20)+(text.length>20?'…':''), [{ label:'HASH GENERATED: '+algo, url:'#', desc:'' }]);
+      renderHistory();
+    } catch(e) { out.innerHTML = '<div class="tool-err-msg">Hash generation failed: ' + _esc(e.message) + '</div>'; }
+  });
+
+  // File hashing
+  const fileDrop = document.getElementById('hg-file-drop');
+  const fileInput = document.getElementById('hg-file-input');
+  const fileAlgo = document.getElementById('hg-file-algo');
+  const fileOut = document.getElementById('hg-file-out');
+
+  fileDrop.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+  fileInput.addEventListener('click', e => e.stopPropagation());
+  ['dragover','dragenter'].forEach(ev => fileDrop.addEventListener(ev, e => { e.preventDefault(); fileDrop.classList.add('tool-drop-hover'); }));
+  fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('tool-drop-hover'));
+  fileDrop.addEventListener('drop', e => { e.preventDefault(); fileDrop.classList.remove('tool-drop-hover'); const f = e.dataTransfer.files[0]; if (f) _hashFile(f, fileAlgo.value, fileOut); });
+  fileInput.addEventListener('change', () => { const f = fileInput.files[0]; if (f) _hashFile(f, fileAlgo.value, fileOut); });
+
+  async function _hashFile(file, algo, out) {
+    out.style.display = 'block'; out.style.opacity = '1';
+    out.innerHTML = '<div class="tool-loading">HASHING FILE<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+    try {
+      const buf = await file.arrayBuffer();
+      const hash = await _sha(algo, buf);
+      const sizeStr = file.size > 1048576 ? (file.size/1048576).toFixed(2)+' MB' : (file.size/1024).toFixed(1)+' KB';
+      out.innerHTML = `
+        <div class="hash-output">
+          <div class="hash-output-label">${_esc(file.name)} — ${sizeStr} — ${algo}</div>
+          <div class="hash-output-val" id="hg-file-result">${_esc(hash)}</div>
+          <button class="tool-btn tool-btn-sm" id="hg-file-copy">COPY HASH</button>
+          <div style="font-size:10px;opacity:.5;margin-top:6px">Compare this hash to the one provided by the file source to verify integrity.</div>
+        </div>`;
+      document.getElementById('hg-file-copy')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(hash).then(() => {
+          document.getElementById('hg-file-copy').textContent = 'COPIED';
+          setTimeout(() => { const el = document.getElementById('hg-file-copy'); if (el) el.textContent = 'COPY HASH'; }, 1500);
+        });
+      });
+    } catch(e) { out.innerHTML = '<div class="tool-err-msg">Could not hash file: ' + _esc(e.message) + '</div>'; }
+  }
+}
+
+function _buildHashLookup(panel) {
+  panel.innerHTML = `
+    <div class="hash-sub">
+      <div class="tool-sub-name">HASH LOOKUP</div>
+      <div class="tool-sub-desc">Search known hash databases for plaintext matches</div>
+      <div class="hash-warn-box">THESE TOOLS ONLY WORK ON WEAK OR PREVIOUSLY CRACKED HASHES. Strong bcrypt or PBKDF2 hashes will not be found. For legitimate security research only.</div>
+      <div class="tool-helper-row">
+        <input type="text" class="tool-input" id="hl-input" placeholder="Paste hash to look up…" autocomplete="off" spellcheck="false">
+        <button class="tool-btn tool-helper-btn" id="hl-btn" disabled>LOOKUP — 5 RESOURCES</button>
+      </div>
+      <div class="tool-out" id="hl-out"></div>
+    </div>
+  `;
+
+  const inp = document.getElementById('hl-input');
+  const btn = document.getElementById('hl-btn');
+  const out = document.getElementById('hl-out');
+
+  inp.addEventListener('input', () => { btn.disabled = inp.value.trim().length < 8; });
+
+  btn.addEventListener('click', () => {
+    const h = inp.value.trim();
+    const enc = encodeURIComponent;
+    const tgt = document.getElementById('setting-link-target')?.value || '_blank';
+    const resources = [
+      { label:'CrackStation',  desc:'Free rainbow table lookup — paste hash manually', url:'https://crackstation.net/' },
+      { label:'Hashes.com',    desc:'Free online hash cracker',                        url:`https://hashes.com/en/decrypt/hash` },
+      { label:'HashKiller',    desc:'Community hash database',                          url:'https://hashkiller.io/listmanager' },
+      { label:'MD5Decrypt',    desc:'MD5 and SHA1 lookup',                             url:`https://md5decrypt.net/en/#answer` },
+      { label:'Google Search', desc:'Search for exact hash in paste sites and leaks',   url:`https://www.google.com/search?q=%22${enc(h)}%22` },
+    ];
+    resources.forEach(r => window.open(r.url, tgt));
+    const ts = new Date().toLocaleTimeString();
+    out.style.display = 'block'; out.style.opacity = '1';
+    out.innerHTML = `<div class="tool-launch-hdr">5 tabs opened at ${ts}</div>` +
+      `<div class="tool-checklist">${resources.map(r =>
+        `<div class="tool-cl-row"><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">OPEN</button></div>`
+      ).join('')}</div>`;
+    out.querySelectorAll('.tool-cl-open').forEach(b => b.addEventListener('click', () => window.open(b.dataset.url, tgt)));
+    HistoryStore.addTool('hash', h.slice(0,20)+(h.length>20?'…':''), resources);
+    renderHistory();
+  });
+}
+
+function _buildHashCompare(panel) {
+  panel.innerHTML = `
+    <div class="hash-sub">
+      <div class="tool-sub-name">HASH COMPARE</div>
+      <div class="tool-sub-desc">Compare two hashes to verify they match — for file integrity checks</div>
+      <div class="hash-compare-grid">
+        <div>
+          <div class="tool-sub-name" style="margin-bottom:6px">HASH A</div>
+          <input type="text" class="tool-input" id="hc-a" placeholder="First hash…" autocomplete="off" spellcheck="false">
+        </div>
+        <div>
+          <div class="tool-sub-name" style="margin-bottom:6px">HASH B</div>
+          <input type="text" class="tool-input" id="hc-b" placeholder="Second hash…" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <button class="tool-btn" id="hc-btn" style="margin-top:8px">COMPARE</button>
+      <div class="tool-out" id="hc-out"></div>
+      <div style="font-size:10px;opacity:.5;margin-top:12px">Compare a downloaded file hash against the official hash to verify integrity. Both must match exactly.</div>
+    </div>
+  `;
+
+  const aInp = document.getElementById('hc-a');
+  const bInp = document.getElementById('hc-b');
+  const btn  = document.getElementById('hc-btn');
+  const out  = document.getElementById('hc-out');
+
+  btn.addEventListener('click', () => {
+    const a = aInp.value.trim().toLowerCase();
+    const b = bInp.value.trim().toLowerCase();
+    if (!a || !b) return;
+    out.style.display = 'block'; out.style.opacity = '1';
+    const match = a === b;
+    const algoA = _identifyHash(a)[0]?.names[0] || 'Unknown';
+    const algoB = _identifyHash(b)[0]?.names[0] || 'Unknown';
+    aInp.style.borderColor = match ? 'var(--color-secondary)' : 'var(--color-danger)';
+    bInp.style.borderColor = match ? 'var(--color-secondary)' : 'var(--color-danger)';
+    if (match) {
+      out.innerHTML = `
+        <div class="hc-result hc-match">MATCH</div>
+        <div class="hc-result-text">HASHES ARE IDENTICAL</div>
+        <div class="hash-result-meta">Length: ${a.length} — Algorithm: ${algoA}</div>`;
+    } else {
+      const [diffA, diffB] = _hexDiff(a, b);
+      out.innerHTML = `
+        <div class="hc-result hc-nomatch">NO MATCH</div>
+        <div class="hc-result-text">HASHES DO NOT MATCH</div>
+        <div class="hash-result-meta">Length A: ${a.length} — Length B: ${b.length}${a.length!==b.length?' <span style="color:var(--color-danger)">[DIFFERENT LENGTHS]</span>':''}</div>
+        <div class="hash-result-meta">Algorithm A: ${algoA} — Algorithm B: ${algoB}${algoA!==algoB&&algoA!=='Unknown'&&algoB!=='Unknown'?' <span style="color:var(--color-danger)">[ALGORITHM MISMATCH]</span>':''}</div>
+        <div class="hc-diff">
+          <div class="hc-diff-label">A:</div><div class="hc-diff-val hc-diff-mono">${diffA}</div>
+          <div class="hc-diff-label">B:</div><div class="hc-diff-val hc-diff-mono">${diffB}</div>
+        </div>`;
+    }
+    HistoryStore.addTool('hash', match?'MATCH':'NO MATCH', [{ label:'HASH COMPARE: '+(match?'MATCH':'NO MATCH'), url:'#', desc:'' }]);
+    renderHistory();
   });
 }
 
