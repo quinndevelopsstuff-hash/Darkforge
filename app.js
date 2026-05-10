@@ -665,14 +665,13 @@ const HistoryStore = {
   clear() { this.save([]); },
 
   addTool(toolType, input, resources) {
-    const icons  = { image: '🖼', email: '📧', username: '👤', ip: '🔌' };
     const labels = { image: 'IMAGE RECON', email: 'EMAIL RECON', username: 'USERNAME RECON', ip: 'IP RECON' };
     const entries = this.load();
     entries.unshift({
       id: Date.now(),
       date: new Date().toISOString(),
       toolType,
-      query: `${icons[toolType] || '🛠'} ${labels[toolType] || 'TOOL'}: ${input}`,
+      query: `${labels[toolType] || 'TOOL'}: ${input}`,
       input,
       resources,   // [{label, url}]
       engines: [],
@@ -2469,22 +2468,22 @@ function _esc(str) {
 // CATEGORIES CONFIG
 // ══════════════════════════════════════════════════════════════
 const CATEGORIES = [
-  { id: 'auth',       icon: '🔐', label: 'Auth & Login' },
-  { id: 'documents',  icon: '📄', label: 'Exposed Documents' },
-  { id: 'directories',icon: '🗄️', label: 'Open Directories' },
-  { id: 'cameras',    icon: '📷', label: 'Cameras & IoT' },
-  { id: 'credentials',icon: '⚙️', label: 'Config & Credentials' },
-  { id: 'person',     icon: '🧑', label: 'Person OSINT' },
-  { id: 'company',    icon: '🏢', label: 'Company / Org Recon' },
-  { id: 'code',       icon: '💻', label: 'Code & Dev Secrets' },
-  { id: 'email',      icon: '📧', label: 'Email & Comms' },
-  { id: 'database',   icon: '🗃️', label: 'Database & Logs' },
-  { id: 'paste',      icon: '📰', label: 'Paste & Leak Sites' },
-  { id: 'infra',      icon: '🌐', label: 'Subdomain & Infra' },
-  { id: 'social',     icon: '📱', label: 'Social Media OSINT' },
-  { id: 'government', icon: '🏛️', label: 'Gov & Public Records' },
-  { id: 'darkweb',    icon: '🌑', label: 'Dark Web Adjacent' },
-  { id: 'people',     icon: '👤', label: 'People Search' },
+  { id: 'auth',       icon: '', label: 'Auth & Login' },
+  { id: 'documents',  icon: '', label: 'Exposed Documents' },
+  { id: 'directories',icon: '', label: 'Open Directories' },
+  { id: 'cameras',    icon: '', label: 'Cameras & IoT' },
+  { id: 'credentials',icon: '', label: 'Config & Credentials' },
+  { id: 'person',     icon: '', label: 'Person OSINT' },
+  { id: 'company',    icon: '', label: 'Company / Org Recon' },
+  { id: 'code',       icon: '', label: 'Code & Dev Secrets' },
+  { id: 'email',      icon: '', label: 'Email & Comms' },
+  { id: 'database',   icon: '', label: 'Database & Logs' },
+  { id: 'paste',      icon: '', label: 'Paste & Leak Sites' },
+  { id: 'infra',      icon: '', label: 'Subdomain & Infra' },
+  { id: 'social',     icon: '', label: 'Social Media OSINT' },
+  { id: 'government', icon: '', label: 'Gov & Public Records' },
+  { id: 'darkweb',    icon: '', label: 'Dark Web Adjacent' },
+  { id: 'people',     icon: '', label: 'People Search' },
 ];
 
 // ══════════════════════════════════════════════════════════════
@@ -4399,7 +4398,7 @@ const TemplateManager = {
 
     const all = this.activeCategory === 'all';
     let html = `<li><button class="category-btn ${all ? 'category-btn-active' : ''}" data-category="all">
-      <span class="cat-icon">📋</span><span class="cat-name">All Templates</span>
+      <span class="cat-name">All Templates</span>
       <span class="cat-count">${visible.length}</span></button></li>`;
 
     for (const cat of CATEGORIES) {
@@ -4407,7 +4406,7 @@ const TemplateManager = {
       if (!n && this.searchTerm) continue;
       const active = this.activeCategory === cat.id;
       html += `<li><button class="category-btn ${active ? 'category-btn-active' : ''}" data-category="${_esc(cat.id)}">
-        <span class="cat-icon">${cat.icon}</span><span class="cat-name">${_esc(cat.label)}</span>
+        <span class="cat-name">${_esc(cat.label)}</span>
         <span class="cat-count">${n}</span></button></li>`;
     }
 
@@ -4652,7 +4651,6 @@ const TemplateManager = {
   // ── Build HTML for a single template card ─────────────────────
   _cardHTML(t) {
     const cat   = CATEGORIES.find(c => c.id === t.category);
-    const icon  = cat ? cat.icon : '🔍';
 
     const preview = t.operators.length
       ? t.operators.map(op => {
@@ -4686,18 +4684,18 @@ const TemplateManager = {
       t.engines.some(e => PEOPLE_ENGINES.has(e));
 
     const cautionHtml = isSensitive
-      ? `<div class="card-caution"><span class="card-caution-icon">⚠</span> USE WITH CAUTION</div>`
+      ? `<div class="card-caution"><span class="card-caution-icon">[!]</span> USE WITH CAUTION</div>`
       : '';
 
     const tagBadges = Array.isArray(t.tags) ? t.tags.map(tag => {
-      if (tag === 'surface-web-only') return `<span class="card-tag card-tag-surface">⚠ SURFACE WEB ONLY</span>`;
+      if (tag === 'surface-web-only') return `<span class="card-tag card-tag-surface">[!] SURFACE WEB ONLY</span>`;
       if (tag === 'us-focused')       return `<span class="card-tag card-tag-us">US-FOCUSED</span>`;
       return '';
     }).join('') : '';
 
     return `<article class="template-card" data-category="${_esc(t.category)}">
       <div class="card-header">
-        <span class="card-cat-icon">${icon}</span>${_esc(t.name)}
+        ${_esc(t.name)}
         <span class="card-badge ${badgeCls}">${badgeTxt}</span>
         <button class="card-explain-btn" data-tid="${_esc(t.id)}" aria-label="Explain this template" title="What does this find?">?</button>
       </div>
@@ -5038,13 +5036,13 @@ const DorkWizard = {
   answers: { intent: null, chips: new Set(), fields: {} },
 
   INTENTS: [
-    { id: 'person',    icon: '👤', label: 'A Person',                   desc: 'Find someone by name, phone, email or address' },
-    { id: 'company',   icon: '🏢', label: 'A Company or Organization',  desc: 'Research a business, find employees, or map infrastructure' },
-    { id: 'documents', icon: '📄', label: 'Documents & Files',          desc: 'Find PDFs, spreadsheets, or other files left exposed online' },
-    { id: 'login',     icon: '🔐', label: 'Login Pages & Admin Panels', desc: 'Find login portals, admin pages, or authentication systems' },
-    { id: 'devices',   icon: '📷', label: 'Cameras & Devices',          desc: 'Find exposed webcams, routers, or IoT devices' },
-    { id: 'code',      icon: '💻', label: 'Code & Credentials',         desc: 'Find API keys, passwords, or config files in public code' },
-    { id: 'recon',     icon: '🌐', label: 'General Website Recon',      desc: 'Explore a specific website or domain' },
+    { id: 'person',    icon: '', label: 'A Person',                   desc: 'Find someone by name, phone, email or address' },
+    { id: 'company',   icon: '', label: 'A Company or Organization',  desc: 'Research a business, find employees, or map infrastructure' },
+    { id: 'documents', icon: '', label: 'Documents & Files',          desc: 'Find PDFs, spreadsheets, or other files left exposed online' },
+    { id: 'login',     icon: '', label: 'Login Pages & Admin Panels', desc: 'Find login portals, admin pages, or authentication systems' },
+    { id: 'devices',   icon: '', label: 'Cameras & Devices',          desc: 'Find exposed webcams, routers, or IoT devices' },
+    { id: 'code',      icon: '', label: 'Code & Credentials',         desc: 'Find API keys, passwords, or config files in public code' },
+    { id: 'recon',     icon: '', label: 'General Website Recon',      desc: 'Explore a specific website or domain' },
   ],
 
   CHIPS: {
@@ -5580,9 +5578,9 @@ const Onboarding = {
           <p>Use it to research people, companies, exposed files, and much more. Everything runs in your browser — no accounts, no tracking, no data sent anywhere.</p>
         </div>
         <div class="onb-features">
-          <div class="onb-feat"><span class="onb-feat-icon">⚡</span><span class="onb-feat-label">Wizard Mode</span><span class="onb-feat-desc">New? Start here</span></div>
-          <div class="onb-feat"><span class="onb-feat-icon">📁</span><span class="onb-feat-label">Templates</span><span class="onb-feat-desc">90+ ready searches</span></div>
-          <div class="onb-feat"><span class="onb-feat-icon">🔍</span><span class="onb-feat-label">Builder</span><span class="onb-feat-desc">Custom queries</span></div>
+          <div class="onb-feat"><span class="onb-feat-label">Wizard Mode</span><span class="onb-feat-desc">New? Start here</span></div>
+          <div class="onb-feat"><span class="onb-feat-label">Templates</span><span class="onb-feat-desc">90+ ready searches</span></div>
+          <div class="onb-feat"><span class="onb-feat-label">Builder</span><span class="onb-feat-desc">Custom queries</span></div>
         </div>
         <div class="onb-actions">
           <button id="onb-tour" class="onb-btn-tour">SHOW ME AROUND</button>
@@ -5887,19 +5885,19 @@ const StrengthMeter = {
     const has = t => types.includes(t);
 
     if (!has('site'))
-      tips.push('💡 Add site: to limit results to one domain');
+      tips.push('TIP: Add site: to limit results to one domain');
     if (!has('filetype') && !has('ext') && (has('intext') || has('intitle')))
-      tips.push('💡 Add filetype:pdf or filetype:xlsx to find specific files');
+      tips.push('TIP: Add filetype:pdf or filetype:xlsx to find specific files');
     if (!has('exact'))
-      tips.push('💡 Wrap key phrases in quotes for exact matches: "phrase here"');
+      tips.push('TIP: Wrap key phrases in quotes for exact matches: "phrase here"');
     if (operators.length === 1)
-      tips.push('💡 Add more operators — each one narrows your results further');
+      tips.push('TIP: Add more operators — each one narrows your results further');
     if (!has('before') && !has('after'))
-      tips.push('💡 Add after:2023-01-01 to find only recent results');
+      tips.push('TIP: Add after:2023-01-01 to find only recent results');
     if (new Set(types).size === 1 && operators.length > 1)
-      tips.push('💡 Mix operator types — combine site: with intitle: for better targeting');
+      tips.push('TIP: Mix operator types — combine site: with intitle: for better targeting');
     if (has('OR') && !has('site') && !has('filetype'))
-      tips.push('💡 OR broadens results — pair it with site: to keep results focused');
+      tips.push('TIP: OR broadens results — pair it with site: to keep results focused');
 
     return tips.slice(0, 3);
   },
@@ -6301,7 +6299,7 @@ function renderConflicts(conflicts) {
 
     const icon = document.createElement('span');
     icon.className = `conflict-icon-wrap conflict-icon-${conflict.type}`;
-    icon.textContent = conflict.type === 'info' ? 'ℹ' : '⚠';
+    icon.textContent = conflict.type === 'info' ? '[i]' : '[!]';
     icon.setAttribute('role', 'img');
     icon.setAttribute('aria-label', _TYPE_LABEL[conflict.type]);
 
@@ -6367,7 +6365,7 @@ function _updateStrengthConflicts(conflicts) {
     `<div class="sm-conflicts-header">CONFLICTS DETECTED</div>` +
     shown.map(c => {
       const brief = c.message.split(/[.—]/)[0].trim();
-      return `<div class="sm-conflict-item"><span>⚠</span><span>${_esc(brief)}</span></div>`;
+      return `<div class="sm-conflict-item"><span>[!]</span><span>${_esc(brief)}</span></div>`;
     }).join('') +
     (extra > 0 ? `<div class="sm-conflicts-more">+${extra} more</div>` : '');
   el.style.opacity = '1';
@@ -6381,7 +6379,7 @@ function _updateConflictBadge(count) {
   if (count > 0) {
     const badge = document.createElement('span');
     badge.className = 'conflict-title-badge';
-    badge.textContent = ` ⚠ ${count}`;
+    badge.textContent = ` [!] ${count}`;
     badge.addEventListener('click', () => {
       document.querySelector(
         '.operator-row.conflict-error, .operator-row.conflict-warning, .operator-row.conflict-info'
@@ -6751,10 +6749,10 @@ function _toolRestore(key) {
 function _toolChecklist(items, ts) {
   return `<div class="tool-checklist">${items.map((r, i) => `
     <div class="tool-cl-row" data-idx="${i}">
-      <span class="tool-cl-status">✓</span>
+      <span class="tool-cl-status">OK</span>
       <span class="tool-cl-label">${_esc(r.label)}</span>
       <span class="tool-cl-desc">${_esc(r.desc)}</span>
-      <button class="tool-cl-reopen btn btn-sm" data-url="${_esc(r.url)}">↗</button>
+      <button class="tool-cl-reopen btn btn-sm" data-url="${_esc(r.url)}">OPEN</button>
     </div>`).join('')}
   <div class="tool-cl-time">Launched at ${ts}</div>
   </div>`;
@@ -6773,6 +6771,7 @@ function _toolTable(headers, rows) {
 function _toolShowOutput(elOut, html) {
   elOut.innerHTML = html;
   elOut.hidden = false;
+  elOut.style.display = 'block';
   elOut.style.opacity = '0';
   requestAnimationFrame(() => { elOut.style.transition = 'opacity 0.3s'; elOut.style.opacity = '1'; });
 }
@@ -6843,7 +6842,7 @@ function _renderExifTags(tags, sourceLabel) {
   let gpsHtml = '';
   if (lat !== null && lng !== null) {
     const mapUrl = `https://maps.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
-    gpsHtml = `<div class="tool-gps-link"><a href="${_esc(mapUrl)}" target="_blank" rel="noopener">📍 VIEW ON MAP (${lat.toFixed(4)}, ${lng.toFixed(4)})</a></div>`;
+    gpsHtml = `<div class="tool-gps-link"><a href="${_esc(mapUrl)}" target="_blank" rel="noopener">VIEW ON MAP (${lat.toFixed(4)}, ${lng.toFixed(4)})</a></div>`;
   }
 
   return `<div class="tool-exif-source">${_esc(sourceLabel)}</div>` +
@@ -6986,7 +6985,7 @@ function _buildImageSection() {
 
   sec.innerHTML = `
     <div class="tool-panel-hdr">
-      <span class="tool-panel-title">🖼 IMAGE &amp; METADATA</span>
+      <span class="tool-panel-title">IMAGE &amp; METADATA</span>
       <span class="tool-panel-desc">Reverse search an image and extract publicly available metadata clues from any image URL</span>
     </div>
     <div class="tool-pair">
@@ -6995,8 +6994,8 @@ function _buildImageSection() {
         <div class="tool-sub-name">REVERSE IMAGE SEARCH</div>
         <div class="tool-sub-desc">Open 6 reverse image search engines simultaneously</div>
         <input type="url" class="tool-input" id="t-imgurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
-        <div class="tool-err" id="t-imgurl-err" hidden></div>
-        <button class="tool-btn" id="t-btn-reverse" disabled>⚡ REVERSE SEARCH — 6 ENGINES</button>
+        <div class="tool-err" id="t-imgurl-err" hidden><p class="tool-err-msg"></p></div>
+        <button class="tool-btn" id="t-btn-reverse" disabled>REVERSE SEARCH — 6 ENGINES</button>
         <div class="tool-out" id="t-reverse-out" hidden></div>
       </div>
       <!-- Sub-tool B: EXIF Extractor -->
@@ -7004,13 +7003,13 @@ function _buildImageSection() {
         <div class="tool-sub-name">EXIF METADATA EXTRACTOR</div>
         <div class="tool-sub-desc">Extract EXIF metadata from any publicly accessible image URL</div>
         <input type="url" class="tool-input" id="t-exifurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
-        <button class="tool-btn" id="t-btn-exif" disabled>⚡ EXTRACT METADATA</button>
+        <button class="tool-btn" id="t-btn-exif" disabled>EXTRACT METADATA</button>
         <div class="tool-file-sep">OR UPLOAD AN IMAGE FILE DIRECTLY</div>
-        <div class="tool-drop" id="t-exif-drop">
+        <div class="tool-drop" id="t-exif-drop" tabindex="0" style="cursor:pointer;position:relative">
           DROP IMAGE HERE OR CLICK TO BROWSE
-          <input type="file" id="t-exif-file" accept=".jpg,.jpeg,.png,.gif,.webp,.tiff,.bmp" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+          <input type="file" id="t-exif-file" accept=".jpg,.jpeg,.png,.gif,.webp,.tiff,.bmp" style="display:none;pointer-events:none;">
         </div>
-        <div class="tool-local-badge" id="t-local-badge" hidden>🟢 LOCAL FILE — not sent anywhere</div>
+        <div class="tool-local-badge" id="t-local-badge" hidden>LOCAL FILE — not uploaded anywhere</div>
         <div class="tool-out" id="t-exif-out" hidden></div>
       </div>
     </div>
@@ -7036,7 +7035,7 @@ function _buildImageSection() {
     const ok = _isImageUrl(imgInput.value);
     btnReverse.disabled = !ok;
     errEl.hidden = ok || !imgInput.value.trim();
-    if (!ok && imgInput.value.trim()) errEl.textContent = 'Enter a valid image URL starting with https://';
+    if (!ok && imgInput.value.trim()) { errEl.hidden = false; errEl.querySelector('.tool-err-msg').textContent = 'Enter a valid image URL starting with https://'; }
   });
 
   btnReverse.addEventListener('click', () => {
@@ -7048,7 +7047,7 @@ function _buildImageSection() {
     _toolShowOutput(reverseOut,
       `<div class="tool-launch-hdr">6 tabs opened at ${ts}</div>` +
       `<div class="tool-checklist">${resources.map(r =>
-        `<div class="tool-cl-row"><span class="tool-cl-ck">✓</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button></div>`
+        `<div class="tool-cl-row"><span class="tool-cl-ck">OK</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">OPEN</button></div>`
       ).join('')}</div>`
     );
     reverseOut.querySelectorAll('.tool-cl-open').forEach(btn => {
@@ -7083,6 +7082,12 @@ function _buildImageSection() {
     _doExifFile(file);
   });
 
+  dropZone.addEventListener('click', e => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+  fileInput.addEventListener('click', e => e.stopPropagation());
+
   ['dragover','dragenter'].forEach(ev => {
     dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('tool-drop-hover'); });
   });
@@ -7094,7 +7099,7 @@ function _buildImageSection() {
   });
 
   function _doExifUrl(url) {
-    _toolShowOutput(exifOut, '<div class="tool-loading">⚙ LOADING EXIF DATA…</div>');
+    _toolShowOutput(exifOut, '<div class="tool-loading">LOADING EXIF DATA<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>');
     _loadExifJs().then(() => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -7116,7 +7121,7 @@ function _buildImageSection() {
   }
 
   function _doExifFile(file) {
-    _toolShowOutput(exifOut, '<div class="tool-loading">⚙ READING FILE…</div>');
+    _toolShowOutput(exifOut, '<div class="tool-loading">READING FILE<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>');
     _loadExifJs().then(() => {
       const objUrl = URL.createObjectURL(file);
       const img = new Image();
@@ -7146,7 +7151,7 @@ function _buildEmailSection() {
 
   sec.innerHTML = `
     <div class="tool-panel-hdr">
-      <span class="tool-panel-title">📧 EMAIL &amp; USERNAME</span>
+      <span class="tool-panel-title">EMAIL &amp; USERNAME</span>
       <span class="tool-panel-desc">Investigate an email address or username across breach databases, social platforms, and OSINT resources — all free, no API keys required</span>
     </div>
     <div class="tool-pair">
@@ -7156,7 +7161,7 @@ function _buildEmailSection() {
         <div class="tool-sub-desc">Launch 10 OSINT resources for any email address</div>
         <input type="email" class="tool-input" id="t-email" placeholder="target@example.com" autocomplete="off" spellcheck="false">
         <div class="tool-email-hint" id="t-email-hint"></div>
-        <button class="tool-btn" id="t-btn-email" disabled>⚡ INVESTIGATE EMAIL — 10 RESOURCES</button>
+        <button class="tool-btn" id="t-btn-email" disabled>INVESTIGATE EMAIL — 10 RESOURCES</button>
         <div class="tool-out" id="t-email-out" hidden></div>
       </div>
       <!-- Sub-tool B: Username Investigator -->
@@ -7165,7 +7170,7 @@ function _buildEmailSection() {
         <div class="tool-sub-desc">Search a username across social, professional, gaming, and more</div>
         <input type="text" class="tool-input" id="t-username" placeholder="username or handle" autocomplete="off" spellcheck="false" maxlength="50">
         <div class="tool-platform-toggles" id="t-platform-toggles"></div>
-        <button class="tool-btn" id="t-btn-username" disabled>⚡ SEARCH USERNAME — ${allPlatformCount} PLATFORMS</button>
+        <button class="tool-btn" id="t-btn-username" disabled>SEARCH USERNAME — ${allPlatformCount} PLATFORMS</button>
         <div class="tool-out" id="t-username-out" hidden></div>
       </div>
     </div>
@@ -7228,7 +7233,7 @@ function _buildEmailSection() {
     _toolShowOutput(emailOut,
       `<div class="tool-launch-hdr">10 tabs opened at ${ts}</div>` +
       `<div class="tool-checklist">${resources.map(r =>
-        `<div class="tool-cl-row"><span class="tool-cl-ck">✓</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button></div>`
+        `<div class="tool-cl-row"><span class="tool-cl-ck">OK</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">OPEN</button></div>`
       ).join('')}</div>` +
       `<div class="tool-invest-card">
         <div class="tool-invest-hdr">INVESTIGATION CHECKLIST</div>
@@ -7270,7 +7275,7 @@ function _buildEmailSection() {
       .reduce((s, cat) => s + USERNAME_PLATFORMS[cat].length, 0);
     const ok = uname.length >= 1 && uname.length <= 50 && !/\s/.test(uname);
     btnUname.disabled = !ok;
-    btnUname.textContent = `⚡ SEARCH USERNAME — ${count} PLATFORMS`;
+    btnUname.textContent = `SEARCH USERNAME — ${count} PLATFORMS`;
   }
 
   // Build platform toggles
@@ -7322,11 +7327,11 @@ function _buildEmailSection() {
           <div class="tool-rt-row" data-ri="${resources.indexOf(r)}">
             <span class="tool-rt-name">${_esc(r.label)}</span>
             <div class="tool-rt-btns">
-              <button class="btn btn-sm tool-rt-btn" data-st="found">✓ EXISTS</button>
-              <button class="btn btn-sm tool-rt-btn" data-st="notfound">✗ NOT FOUND</button>
-              <button class="btn btn-sm tool-rt-btn" data-st="unsure">? UNSURE</button>
+              <button class="btn btn-sm tool-rt-btn" data-st="found">FOUND</button>
+              <button class="btn btn-sm tool-rt-btn" data-st="notfound">NOT FOUND</button>
+              <button class="btn btn-sm tool-rt-btn" data-st="unsure">UNSURE</button>
             </div>
-            <button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button>
+            <button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">OPEN</button>
           </div>`).join('')}
       </div>`).join('');
 
@@ -7334,7 +7339,7 @@ function _buildEmailSection() {
       `<div class="tool-launch-hdr">${resources.length} tabs opened at ${ts}</div>` +
       `<div class="tool-rt-summary" id="t-rt-summary">FOUND ON <span id="t-rt-found">0</span> / <span id="t-rt-checked">0</span> PLATFORMS CHECKED</div>` +
       trackerHtml +
-      `<button class="tool-btn tool-save-results-btn" id="t-save-results" style="margin-top:12px">💾 SAVE RESULTS TO HISTORY</button>`
+      `<button class="tool-btn tool-save-results-btn" id="t-save-results" style="margin-top:12px">SAVE RESULTS TO HISTORY</button>`
     );
 
     const states = new Array(resources.length).fill('unchecked');
@@ -7366,7 +7371,7 @@ function _buildEmailSection() {
       const annotated = resources.map((r,i) => ({ ...r, state: states[i] }));
       HistoryStore.addTool('username', uname, annotated);
       renderHistory();
-      document.getElementById('t-save-results').textContent = '✓ SAVED';
+      document.getElementById('t-save-results').textContent = 'SAVED';
     });
 
     HistoryStore.addTool('username', uname, resources);
@@ -7383,7 +7388,7 @@ function _buildNetworkSection() {
 
   sec.innerHTML = `
     <div class="tool-panel-hdr">
-      <span class="tool-panel-title">🔌 NETWORK &amp; IP</span>
+      <span class="tool-panel-title">NETWORK &amp; IP</span>
       <span class="tool-panel-desc">Investigate an IP address or domain's network footprint using free public intelligence sources</span>
     </div>
     <div class="tool-pair">
@@ -7393,7 +7398,7 @@ function _buildNetworkSection() {
         <div class="tool-sub-desc">Launch 10 intelligence sources and fetch live geolocation data</div>
         <input type="text" class="tool-input" id="t-ip" placeholder="8.8.8.8" autocomplete="off" spellcheck="false">
         <div class="tool-err" id="t-ip-err" hidden></div>
-        <button class="tool-btn" id="t-btn-ip" disabled>⚡ INVESTIGATE IP — 10 RESOURCES</button>
+        <button class="tool-btn" id="t-btn-ip" disabled>INVESTIGATE IP — 10 RESOURCES</button>
         <div class="tool-out" id="t-ip-out" hidden></div>
       </div>
       <!-- Sub-tool B: Network Helpers -->
@@ -7427,7 +7432,7 @@ function _buildNetworkSection() {
 
     const resources = [
       { label:'IPInfo.io',            desc:'Location, ISP, ASN, hostname info',                      url:`https://ipinfo.io/${enc(ip)}` },
-      { label:'IP-API',               desc:'Geolocation and network details',                        url:`http://ip-api.com/${enc(ip)}` },
+      { label:'IP-API',               desc:'Geolocation and network details',                        url:`https://ip-api.com/${enc(ip)}` },
       { label:'WhatIsMyIPAddress',     desc:'Location and ISP lookup',                               url:`https://whatismyipaddress.com/ip/${enc(ip)}` },
       { label:'AbuseIPDB',            desc:'Check IP for abuse and malicious reports',               url:`https://www.abuseipdb.com/check/${enc(ip)}` },
       { label:'VirusTotal',           desc:'Security vendor reputation scan',                        url:`https://www.virustotal.com/gui/ip-address/${enc(ip)}` },
@@ -7444,7 +7449,7 @@ function _buildNetworkSection() {
     _toolShowOutput(ipOut,
       `<div class="tool-launch-hdr">10 tabs opened at ${ts}</div>` +
       `<div class="tool-checklist">${resources.map(r =>
-        `<div class="tool-cl-row"><span class="tool-cl-ck">✓</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">↗</button></div>`
+        `<div class="tool-cl-row"><span class="tool-cl-ck">OK</span><span class="tool-cl-label">${_esc(r.label)}</span><span class="tool-cl-desc">${_esc(r.desc)}</span><button class="btn btn-sm tool-cl-open" data-url="${_esc(r.url)}">OPEN</button></div>`
       ).join('')}</div>` +
       `<div class="tool-ip-live" id="t-ip-live"><div class="tool-loading">QUERYING IP DATA<span class="tool-dots">...</span></div></div>` +
       `<div class="tool-rate-note">Data from ip-api.com — free tier: 45 requests/min</div>`
@@ -7454,7 +7459,7 @@ function _buildNetworkSection() {
 
     // Fetch live data from ip-api.com
     const liveEl = document.getElementById('t-ip-live');
-    fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,isp,org,as,timezone,proxy,mobile`)
+    fetch(`https://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,isp,org,as,timezone,proxy,mobile`)
       .then(r => r.json())
       .then(data => {
         if (data.status !== 'success') { liveEl.innerHTML = `<div class="tool-err-msg">Could not fetch IP data — check the resources above for manual lookup</div>`; return; }
@@ -7465,7 +7470,7 @@ function _buildNetworkSection() {
           ['Region',     _esc(data.regionName)],
           ['City',       _esc(data.city)],
           ['ZIP Code',   _esc(data.zip)],
-          ['Coordinates',`${data.lat}, ${data.lon} — <a href="${_esc(mapUrl)}" target="_blank" rel="noopener">📍 VIEW ON MAP</a>`],
+          ['Coordinates',`${data.lat}, ${data.lon} — <a href="${_esc(mapUrl)}" target="_blank" rel="noopener">VIEW ON MAP</a>`],
           ['ISP',        _esc(data.isp)],
           ['Organization',_esc(data.org)],
           ['ASN',        _esc(data.as)],

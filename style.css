@@ -5646,3 +5646,13 @@ select:disabled {
     padding: 0 6px;
   }
 }
+
+/* ── Prevent inactive Tools panel from capturing pointer events ── */
+#panel-tools:not(.panel-active) {
+  pointer-events: none;
+}
+
+/* ── Hide empty category icon spans ─────────────────────────── */
+.cat-icon:empty {
+  display: none;
+}
