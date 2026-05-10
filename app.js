@@ -6409,7 +6409,7 @@ function _updateConflictBadge(count) {
 const VerificationGate = {
   _challengeDone: false,
   _agreeDone: false,
-  _WEEK_MS: 7 * 24 * 60 * 60 * 1000,
+  _WEEK_MS: 60 * 60 * 1000,
 
   // Returns true if gate was shown (caller should defer onboarding)
   init() {
@@ -6479,8 +6479,8 @@ const VerificationGate = {
     const el = document.getElementById('verify-footer-note');
     if (!el) return;
     el.textContent = lastDate
-      ? `This verification resets weekly. Last verified: ${lastDate.toLocaleDateString()}`
-      : 'This verification resets weekly. Last verified: Never';
+      ? `This verification resets hourly. Last verified: ${lastDate.toLocaleDateString()}`
+      : 'This verification resets hourly. Last verified: Never';
   },
 
   // ── Challenge A: click amber squares ──────────────────────────

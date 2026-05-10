@@ -38,7 +38,7 @@
 
       // Also handle verification gate-skip
       var stored = localStorage.getItem('dorkforge_verified');
-      if (stored && (Date.now() - parseInt(stored, 10)) < 604800000) {
+      if (stored && (Date.now() - parseInt(stored, 10)) < 3600000) {
         r.classList.add('gate-skip');
       }
     })();
