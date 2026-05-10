@@ -665,7 +665,7 @@ const HistoryStore = {
   clear() { this.save([]); },
 
   addTool(toolType, input, resources) {
-    const labels = { image: 'IMAGE RECON', email: 'EMAIL RECON', username: 'USERNAME RECON', ip: 'IP RECON', scrubber: 'METADATA SCAN', hash: 'HASH TOOL' };
+    const labels = { image: 'IMAGE RECON', email: 'EMAIL RECON', username: 'USERNAME RECON', ip: 'IP RECON', scrubber: 'METADATA SCAN', hash: 'HASH TOOL', cpt: 'CAMERA PRIVACY TEST' };
     const entries = this.load();
     entries.unshift({
       id: Date.now(),
@@ -6988,48 +6988,67 @@ function _buildImageSection() {
   sec.innerHTML = `
     <div class="tool-panel-hdr">
       <span class="tool-panel-title">IMAGE &amp; METADATA</span>
-      <span class="tool-panel-desc">Reverse search an image and extract publicly available metadata clues from any image URL</span>
+      <span class="tool-panel-desc">Reverse search images, extract metadata, and test your own photos for privacy risks.</span>
     </div>
-    <div class="tool-pair">
-      <!-- Sub-tool A: Reverse Search -->
-      <div class="tool-sub">
-        <div class="tool-sub-name">REVERSE IMAGE SEARCH</div>
-        <div class="tool-sub-desc">Open 6 reverse image search engines simultaneously</div>
-        <input type="url" class="tool-input" id="t-imgurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
-        <div class="tool-err" id="t-imgurl-err" hidden><p class="tool-err-msg"></p></div>
-        <button class="tool-btn" id="t-btn-reverse" disabled>REVERSE SEARCH — 6 ENGINES</button>
-        <div class="tool-out" id="t-reverse-out" hidden></div>
-      </div>
-      <!-- Sub-tool B: EXIF Extractor -->
-      <div class="tool-sub">
-        <div class="tool-sub-name">EXIF METADATA EXTRACTOR</div>
-        <div class="tool-sub-desc">Extract EXIF metadata from any publicly accessible image URL</div>
-        <input type="url" class="tool-input" id="t-exifurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
-        <button class="tool-btn" id="t-btn-exif" disabled>EXTRACT METADATA</button>
-        <div class="tool-file-sep">OR UPLOAD AN IMAGE FILE DIRECTLY</div>
-        <div class="tool-drop" id="t-exif-drop" tabindex="0" style="cursor:pointer;position:relative">
-          DROP IMAGE HERE OR CLICK TO BROWSE
-          <input type="file" id="t-exif-file" accept=".jpg,.jpeg,.png,.gif,.webp,.tiff,.bmp" style="display:none;pointer-events:none;">
+    <nav class="tool-img-tabs" aria-label="Image tool sections">
+      <button class="tool-img-tab img-tab-active" data-itab="tools">IMAGE TOOLS</button>
+      <button class="tool-img-tab" data-itab="privacy">CAMERA PRIVACY TEST</button>
+    </nav>
+    <div id="img-panel-tools" class="img-panel">
+      <div class="tool-pair">
+        <!-- Sub-tool A: Reverse Search -->
+        <div class="tool-sub">
+          <div class="tool-sub-name">REVERSE IMAGE SEARCH</div>
+          <div class="tool-sub-desc">Open 6 reverse image search engines simultaneously</div>
+          <input type="url" class="tool-input" id="t-imgurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
+          <div class="tool-err" id="t-imgurl-err" hidden><p class="tool-err-msg"></p></div>
+          <button class="tool-btn" id="t-btn-reverse" disabled>REVERSE SEARCH — 6 ENGINES</button>
+          <div class="tool-out" id="t-reverse-out" hidden></div>
         </div>
-        <div class="tool-local-badge" id="t-local-badge" hidden>LOCAL FILE — not uploaded anywhere</div>
-        <div class="tool-out" id="t-exif-out" hidden></div>
+        <!-- Sub-tool B: EXIF Extractor -->
+        <div class="tool-sub">
+          <div class="tool-sub-name">EXIF METADATA EXTRACTOR</div>
+          <div class="tool-sub-desc">Extract EXIF metadata from any publicly accessible image URL</div>
+          <input type="url" class="tool-input" id="t-exifurl" placeholder="https://example.com/photo.jpg" autocomplete="off" spellcheck="false">
+          <button class="tool-btn" id="t-btn-exif" disabled>EXTRACT METADATA</button>
+          <div class="tool-file-sep">OR UPLOAD AN IMAGE FILE DIRECTLY</div>
+          <div class="tool-drop" id="t-exif-drop" tabindex="0" style="cursor:pointer;position:relative">
+            DROP IMAGE HERE OR CLICK TO BROWSE
+            <input type="file" id="t-exif-file" accept=".jpg,.jpeg,.png,.gif,.webp,.tiff,.bmp" style="display:none;pointer-events:none;">
+          </div>
+          <div class="tool-local-badge" id="t-local-badge" hidden>LOCAL FILE — not uploaded anywhere</div>
+          <div class="tool-out" id="t-exif-out" hidden></div>
+        </div>
       </div>
     </div>
+    <div id="img-panel-privacy" class="img-panel" hidden></div>
   `;
 
+  // ── Image sub-tab switching ──────────────────────────────
+  const imgTabBtns = sec.querySelectorAll('[data-itab]');
+  const imgPanels  = {
+    tools:   document.getElementById('img-panel-tools'),
+    privacy: document.getElementById('img-panel-privacy'),
+  };
+  function _switchImgTab(id) {
+    imgTabBtns.forEach(b => b.classList.toggle('img-tab-active', b.dataset.itab === id));
+    Object.keys(imgPanels).forEach(k => { imgPanels[k].hidden = k !== id; });
+  }
+  imgTabBtns.forEach(b => b.addEventListener('click', () => _switchImgTab(b.dataset.itab)));
+
   // ── Reverse image search logic ────────────────────────────
-  const imgInput = document.getElementById('t-imgurl');
+  const imgInput   = document.getElementById('t-imgurl');
   const btnReverse = document.getElementById('t-btn-reverse');
-  const errEl    = document.getElementById('t-imgurl-err');
+  const errEl      = document.getElementById('t-imgurl-err');
   const reverseOut = document.getElementById('t-reverse-out');
 
   const REVERSE_ENGINES = [
-    { label:'Google Lens',      desc:'Google Lens reverse image search',          url: u => `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(u)}` },
-    { label:'TinEye',           desc:'Oldest reverse image search engine',        url: u => `https://tineye.com/search?url=${encodeURIComponent(u)}` },
-    { label:'Bing Visual',      desc:'Microsoft Bing visual search',              url: u => `https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:${encodeURIComponent(u)}` },
-    { label:'Yandex Images',    desc:'Often finds results Google misses',         url: u => `https://yandex.com/images/search?url=${encodeURIComponent(u)}&rpt=imageview` },
-    { label:'EXIF.tools',       desc:'Online EXIF metadata reader for the URL',   url: u => `https://exif.tools/image.php?url=${encodeURIComponent(u)}` },
-    { label:'Photo Forensics',  desc:'Detect image manipulation and editing',     url: u => `https://29a.ch/photo-forensics/#forensic-magnifier|url=${encodeURIComponent(u)}` },
+    { label:'Google Lens',     desc:'Google Lens reverse image search',         url: u => `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(u)}` },
+    { label:'TinEye',          desc:'Oldest reverse image search engine',       url: u => `https://tineye.com/search?url=${encodeURIComponent(u)}` },
+    { label:'Bing Visual',     desc:'Microsoft Bing visual search',             url: u => `https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:${encodeURIComponent(u)}` },
+    { label:'Yandex Images',   desc:'Often finds results Google misses',        url: u => `https://yandex.com/images/search?url=${encodeURIComponent(u)}&rpt=imageview` },
+    { label:'EXIF.tools',      desc:'Online EXIF metadata reader for the URL',  url: u => `https://exif.tools/image.php?url=${encodeURIComponent(u)}` },
+    { label:'Photo Forensics', desc:'Detect image manipulation and editing',    url: u => `https://29a.ch/photo-forensics/#forensic-magnifier|url=${encodeURIComponent(u)}` },
   ];
 
   imgInput.addEventListener('input', () => {
@@ -7084,10 +7103,7 @@ function _buildImageSection() {
     _doExifFile(file);
   });
 
-  dropZone.addEventListener('click', e => {
-    e.stopPropagation();
-    fileInput.click();
-  });
+  dropZone.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
   fileInput.addEventListener('click', e => e.stopPropagation());
 
   ['dragover','dragenter'].forEach(ev => {
@@ -7112,8 +7128,7 @@ function _buildImageSection() {
         });
       };
       img.onerror = () => {
-        _toolShowOutput(exifOut,
-          `<div class="tool-no-data">Direct fetch blocked by CORS policy. Opening EXIF.tools for this image instead…</div>`);
+        _toolShowOutput(exifOut, `<div class="tool-no-data">Direct fetch blocked by CORS policy. Opening EXIF.tools for this image instead…</div>`);
         window.open(`https://exif.tools/image.php?url=${encodeURIComponent(url)}`, '_blank');
       };
       img.src = url;
@@ -7139,6 +7154,445 @@ function _buildImageSection() {
     }).catch(() => {
       _toolShowOutput(exifOut, '<div class="tool-err-msg">Could not load EXIF library. Check your connection.</div>');
     });
+  }
+
+  // ── Camera Privacy Test ──────────────────────────────────
+  _buildCameraPrivacyTest(imgPanels.privacy);
+}
+
+// ── Camera Privacy Test ───────────────────────────────────────
+
+const CPT_FIELDS = [
+  { key:'GPSLatitude',       label:'GPS Latitude',       risk:'HIGH',   meaning:'Exact location where photo was taken — most dangerous field' },
+  { key:'GPSLongitude',      label:'GPS Longitude',      risk:'HIGH',   meaning:'Exact location — combined with latitude reveals precise spot' },
+  { key:'GPSAltitude',       label:'GPS Altitude',       risk:'MEDIUM', meaning:'Elevation above sea level when taken' },
+  { key:'GPSTimestamp',      label:'GPS Timestamp',      risk:'MEDIUM', meaning:'Exact time recorded by GPS at capture' },
+  { key:'Make',              label:'Camera Brand',        risk:'LOW',    meaning:'Brand of phone or camera used' },
+  { key:'Model',             label:'Camera Model',        risk:'MEDIUM', meaning:'Exact phone model — can correlate identity across photos' },
+  { key:'Software',          label:'Software',            risk:'LOW',    meaning:'App or OS used to take or edit photo' },
+  { key:'DateTimeOriginal',  label:'Date/Time Taken',    risk:'MEDIUM', meaning:'Exact date and time photo was taken' },
+  { key:'DateTime',          label:'Date Modified',       risk:'LOW',    meaning:'Date file was last modified' },
+  { key:'Artist',            label:'Artist / Name',       risk:'HIGH',   meaning:'Your name — often set automatically by camera apps' },
+  { key:'Copyright',         label:'Copyright',           risk:'MEDIUM', meaning:'Copyright string — may contain real name' },
+  { key:'ImageDescription',  label:'Description',         risk:'MEDIUM', meaning:'Text description — may contain personal information' },
+  { key:'UserComment',       label:'User Comment',        risk:'MEDIUM', meaning:'Free text comment embedded in photo' },
+  { key:'SerialNumber',      label:'Serial Number',       risk:'HIGH',   meaning:'Unique identifier for your device — links all photos from same camera' },
+  { key:'LensModel',         label:'Lens Model',          risk:'LOW',    meaning:'Lens used — camera identification' },
+  { key:'BodySerialNumber',  label:'Body Serial Number',  risk:'HIGH',   meaning:'Camera body serial — uniquely identifies your device' },
+  { key:'ExposureTime',      label:'Exposure Time',       risk:'LOW',    meaning:'Camera settings when photo was taken' },
+  { key:'FNumber',           label:'Aperture (f/)',       risk:'LOW',    meaning:'Camera settings when photo was taken' },
+  { key:'ISOSpeedRatings',   label:'ISO Speed',           risk:'LOW',    meaning:'Camera sensitivity setting' },
+  { key:'FocalLength',       label:'Focal Length',        risk:'LOW',    meaning:'Lens focal length — camera identification' },
+  { key:'Flash',             label:'Flash',               risk:'LOW',    meaning:'Whether flash was used' },
+  { key:'ColorSpace',        label:'Color Space',         risk:'LOW',    meaning:'Technical color profile of image' },
+  { key:'Orientation',       label:'Orientation',         risk:'LOW',    meaning:'How device was held when taking photo' },
+  { key:'WhiteBalance',      label:'White Balance',       risk:'LOW',    meaning:'Camera mode setting' },
+  { key:'SceneCaptureType',  label:'Scene Type',          risk:'LOW',    meaning:'Camera capture mode setting' },
+];
+
+const CPT_OS_INSTRUCTIONS = {
+  windows: {
+    label: 'Windows 10 / 11',
+    steps: [
+      { heading: 'BEFORE TAKING PHOTOS — Disable location access', items: [
+        'Open Settings (Win+I)',
+        'Go to Privacy &amp; Security &gt; Location',
+        'Turn off Location access for the Camera app',
+        'This prevents GPS coordinates being embedded in all future photos',
+      ]},
+      { heading: 'STRIP METADATA — File Explorer method (easiest)', items: [
+        'Right-click the photo file in File Explorer',
+        'Select Properties',
+        'Click the Details tab',
+        'Click <strong>Remove Properties and Personal Information</strong>',
+        'Select <strong>Remove the following properties from this file</strong>',
+        'Click Select All, then OK',
+        'A new clean copy of the file is created alongside the original',
+      ]},
+      { heading: 'STRIP METADATA — Paint (quick method)', items: [
+        'Open the photo in Microsoft Paint',
+        'File &gt; Save As and save as a new filename',
+        'Paint strips most EXIF data when saving',
+        'Note: GPS and most personal fields are removed this way',
+      ]},
+      { heading: 'STRIP METADATA — ExifTool (thorough)', items: [
+        'Download ExifTool free from exiftool.org',
+        'Run: <code>exiftool -all= yourphoto.jpg</code>',
+        'This permanently removes all metadata from the file',
+        'Process a whole folder: <code>exiftool -all= /path/to/folder/</code>',
+      ]},
+    ],
+  },
+  macos: {
+    label: 'macOS',
+    steps: [
+      { heading: 'BEFORE TAKING PHOTOS — Disable location access', items: [
+        'Open System Settings (Apple menu &gt; System Settings)',
+        'Go to Privacy &amp; Security &gt; Location Services',
+        'Find Camera in the list and set to <strong>Never</strong>',
+        'Future photos taken with this Mac will have no GPS data',
+      ]},
+      { heading: 'STRIP GPS — Preview app', items: [
+        'Open the photo in Preview',
+        'Go to Tools &gt; Show Inspector (Cmd+I)',
+        'Click the GPS tab',
+        'Click <strong>Remove Location Info</strong>',
+        'Note: this only removes GPS — other EXIF fields remain',
+      ]},
+      { heading: 'STRIP ALL METADATA — ImageOptim (recommended)', items: [
+        'Download ImageOptim free from imageoptim.com',
+        'Drag your photo into the ImageOptim window',
+        'It automatically strips all metadata and optimizes the file',
+        'Check Settings to ensure metadata removal is enabled',
+      ]},
+      { heading: 'STRIP GPS — Photos app export', items: [
+        'Import the photo to the Photos app',
+        'File &gt; Export &gt; Export X Photos',
+        'Uncheck <strong>Location Information</strong> checkbox',
+        'This exports a clean copy without GPS data',
+      ]},
+    ],
+  },
+  ios: {
+    label: 'iOS (iPhone / iPad)',
+    steps: [
+      { heading: 'BEFORE TAKING PHOTOS — Disable location', items: [
+        'Open Settings &gt; Privacy &amp; Security &gt; Location Services',
+        'Scroll to Camera',
+        'Select <strong>Never</strong> to block location entirely',
+        'Or select <strong>Ask Next Time</strong> to decide per session',
+        'Future photos will not embed GPS coordinates',
+      ]},
+      { heading: 'SHARE WITHOUT LOCATION — Messages/Mail/AirDrop', items: [
+        'Tap the photo to open it',
+        'Tap the Share button (box with arrow)',
+        'At the top tap <strong>Options</strong> (appears before you choose destination)',
+        'Toggle off <strong>Location</strong>',
+        'Now share — the shared copy has no GPS data',
+        'Note: the original photo on your device keeps its GPS',
+      ]},
+      { heading: 'STRIP FROM EXISTING PHOTOS', items: [
+        'Go to Settings &gt; Privacy &amp; Security &gt; Location Services',
+        'Turn off Camera location permanently',
+        'Existing photos retain GPS — use the share Options method above for those',
+        'Third-party option: Metapho app (App Store) — view and remove metadata',
+      ]},
+    ],
+  },
+  android: {
+    label: 'Android',
+    steps: [
+      { heading: 'BEFORE TAKING PHOTOS — Disable location tags', items: [
+        'Open the Camera app',
+        'Go to Camera Settings (gear icon)',
+        'Find the location/GPS option — name varies by manufacturer:',
+        'Samsung: <strong>Location tags</strong>',
+        'Pixel: <strong>Save location</strong>',
+        'OnePlus: <strong>Location info</strong>',
+        'Turn it off — future photos will not embed GPS',
+      ]},
+      { heading: 'STRIP GPS — Google Photos', items: [
+        'Open the photo in Google Photos',
+        'Tap the three-dot menu (top right)',
+        'Tap <strong>Remove location</strong>',
+        'This removes GPS from that specific photo',
+      ]},
+      { heading: 'STRIP ALL METADATA — Photo Exif Editor app', items: [
+        'Install Photo Exif Editor from the Play Store (free)',
+        'Open the app, select your photo',
+        'View all metadata fields',
+        'Delete the fields you want to remove',
+        'Save the cleaned copy',
+      ]},
+      { heading: 'SHARE WITHOUT METADATA — Google Photos', items: [
+        'Photos shared via the Google Photos share function strip location by default',
+        'Direct file sharing via a file manager sends all original metadata',
+        'Always use the in-app share rather than direct file attachment for privacy',
+      ]},
+    ],
+  },
+  linux: {
+    label: 'Linux',
+    steps: [
+      { heading: 'STRIP METADATA — ExifTool (command line)', items: [
+        'Install: <code>sudo apt install libimage-exiftool-perl</code>',
+        'Strip all metadata: <code>exiftool -all= photo.jpg</code>',
+        'Strip GPS only: <code>exiftool -gps:all= photo.jpg</code>',
+        'Process a folder: <code>exiftool -all= /path/to/folder/</code>',
+        'ExifTool creates a backup by default — delete with <code>-overwrite_original</code>',
+      ]},
+      { heading: 'STRIP METADATA — GUI option', items: [
+        'Install Metadata Cleaner from Flathub:',
+        '<code>flatpak install flathub fr.romainvigier.MetadataCleaner</code>',
+        'Drag and drop photos to strip all metadata',
+        'Simple visual interface, no command line needed',
+      ]},
+    ],
+  },
+  chromeos: {
+    label: 'ChromeOS',
+    steps: [
+      { heading: 'STRIP METADATA — Online tool (recommended)', items: [
+        'Visit exifpurge.com in the Chrome browser',
+        'This tool runs entirely in your browser — no upload required',
+        'Or use the DorkForge Metadata Scrubber tool on this page',
+      ]},
+      { heading: 'STRIP METADATA — Android app', items: [
+        'Most Chromebooks support Android apps via the Play Store',
+        'Install Photo Exif Editor from the Play Store',
+        'Open your photo, delete unwanted metadata fields, save',
+      ]},
+      { heading: 'MANAGE CAMERA PERMISSIONS', items: [
+        'Open Chrome Settings &gt; Privacy and Security &gt; Site Settings',
+        'Go to Camera and review which apps have access',
+        'Location in photos is controlled by the individual app (Camera, etc.)',
+      ]},
+    ],
+  },
+};
+
+function _detectOSForCPT() {
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua) && !/Windows Phone/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  if (/CrOS/.test(ua)) return 'chromeos';
+  if (/Win/.test(ua)) return 'windows';
+  if (/Mac/.test(ua)) return 'macos';
+  if (/Linux/.test(ua)) return 'linux';
+  return 'windows';
+}
+
+function _renderCPTInstructions(osKey) {
+  const os = CPT_OS_INSTRUCTIONS[osKey];
+  if (!os) return '';
+  return `<div class="cpt-fix-section">
+    <div class="cpt-fix-hdr">HOW TO PROTECT YOUR PRIVACY ON ${_esc(os.label.toUpperCase())}</div>
+    ${os.steps.map(s => `
+      <div class="cpt-fix-group">
+        <div class="cpt-fix-group-title">${_esc(s.heading)}</div>
+        <ol class="cpt-fix-steps">
+          ${s.items.map(item => `<li>${item}</li>`).join('')}
+        </ol>
+      </div>`).join('')}
+  </div>`;
+}
+
+function _buildCameraPrivacyTest(panel) {
+  panel.innerHTML = `
+    <div class="cpt-wrap">
+      <div class="cpt-local-notice">
+        YOUR PHOTO NEVER LEAVES YOUR DEVICE<br>
+        ALL ANALYSIS RUNS ENTIRELY IN YOUR BROWSER
+      </div>
+
+      <div class="cpt-capture-grid">
+        <div class="cpt-capture-opt">
+          <div class="tool-sub-name">TAKE A PHOTO NOW</div>
+          <div class="tool-sub-desc" style="margin-bottom:12px">Uses your device camera directly</div>
+          <button class="tool-btn" id="cpt-btn-camera">OPEN CAMERA</button>
+          <input type="file" id="cpt-file-camera" accept="image/*" capture="environment"
+            style="display:none;pointer-events:none;">
+        </div>
+        <div class="cpt-capture-opt">
+          <div class="tool-sub-name">UPLOAD FROM DEVICE</div>
+          <div class="tool-sub-desc" style="margin-bottom:12px">Select an existing photo or screenshot</div>
+          <button class="tool-btn" id="cpt-btn-library">CHOOSE FROM LIBRARY</button>
+          <input type="file" id="cpt-file-library" accept="image/*"
+            style="display:none;pointer-events:none;">
+        </div>
+      </div>
+
+      <div id="cpt-results" class="cpt-results" hidden>
+        <div class="cpt-results-hdr">WHAT THIS PHOTO TELLS A WEBSITE</div>
+        <div class="cpt-results-sub">This is the metadata embedded in your photo that any website or app receives when you upload or share it.</div>
+        <div id="cpt-gps-alert" class="cpt-gps-alert" hidden></div>
+        <div id="cpt-summary" class="cpt-summary"></div>
+        <div id="cpt-table-wrap" class="cpt-table-wrap"></div>
+
+        <div class="cpt-os-row">
+          <span class="cpt-os-label">DETECTED OPERATING SYSTEM:</span>
+          <select id="cpt-os-sel" class="op-select" style="height:36px;margin-left:8px">
+            <option value="windows">Windows 10 / 11</option>
+            <option value="macos">macOS</option>
+            <option value="ios">iOS (iPhone / iPad)</option>
+            <option value="android">Android</option>
+            <option value="linux">Linux</option>
+            <option value="chromeos">ChromeOS</option>
+          </select>
+        </div>
+
+        <div id="cpt-fix" class="cpt-fix"></div>
+
+        <div class="cpt-actions">
+          <button class="tool-btn" id="cpt-btn-scrubber" style="flex:1">OPEN SCRUBBER TOOL</button>
+          <button class="tool-btn" id="cpt-btn-share" style="flex:1">SHARE THIS GUIDE</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ── Wire up capture buttons ───────────────────────────────
+  const btnCamera  = document.getElementById('cpt-btn-camera');
+  const fileCamera = document.getElementById('cpt-file-camera');
+  const btnLibrary = document.getElementById('cpt-btn-library');
+  const fileLib    = document.getElementById('cpt-file-library');
+
+  btnCamera.addEventListener('click', e => { e.stopPropagation(); fileCamera.click(); });
+  fileCamera.addEventListener('click', e => e.stopPropagation());
+  fileCamera.addEventListener('change', () => { if (fileCamera.files[0]) _runCPT(fileCamera.files[0]); });
+
+  btnLibrary.addEventListener('click', e => { e.stopPropagation(); fileLib.click(); });
+  fileLib.addEventListener('click', e => e.stopPropagation());
+  fileLib.addEventListener('change', () => { if (fileLib.files[0]) _runCPT(fileLib.files[0]); });
+
+  // ── OS selector ───────────────────────────────────────────
+  const detectedOS = _detectOSForCPT();
+  const osSel = document.getElementById('cpt-os-sel');
+  osSel.value = detectedOS;
+  osSel.addEventListener('change', () => {
+    document.getElementById('cpt-fix').innerHTML = _renderCPTInstructions(osSel.value);
+  });
+
+  // ── Quick actions ─────────────────────────────────────────
+  document.getElementById('cpt-btn-scrubber').addEventListener('click', () => {
+    document.querySelector('[data-tsec="scrubber"]')?.click();
+  });
+  document.getElementById('cpt-btn-share').addEventListener('click', () => {
+    const url = location.href;
+    if (navigator.share) {
+      navigator.share({ title: 'DorkForge Camera Privacy Test', text: 'Test your photos for hidden metadata on DorkForge', url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById('cpt-btn-share');
+        if (btn) { btn.textContent = 'LINK COPIED'; setTimeout(() => { btn.textContent = 'SHARE THIS GUIDE'; }, 1500); }
+      });
+    }
+  });
+
+  // ── Main analysis ─────────────────────────────────────────
+  function _runCPT(file) {
+    const resultsEl = document.getElementById('cpt-results');
+    resultsEl.hidden = false;
+    document.getElementById('cpt-table-wrap').innerHTML =
+      '<div class="tool-loading">ANALYZING PHOTO<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+    document.getElementById('cpt-gps-alert').hidden = true;
+    document.getElementById('cpt-summary').innerHTML = '';
+
+    _loadExifJs().then(() => {
+      const objUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function() {
+        window.EXIF.getData(this, function() {
+          URL.revokeObjectURL(objUrl);
+          const tags = window.EXIF.getAllTags(this);
+          _renderCPTResults(tags, file);
+        });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        document.getElementById('cpt-table-wrap').innerHTML = '<div class="tool-err-msg">Could not read image file.</div>';
+      };
+      img.src = objUrl;
+    }).catch(() => {
+      document.getElementById('cpt-table-wrap').innerHTML = '<div class="tool-err-msg">Could not load EXIF library.</div>';
+    });
+  }
+
+  function _renderCPTResults(tags, file) {
+    const found = [];
+    for (const f of CPT_FIELDS) {
+      let val = tags[f.key];
+      if (val === undefined || val === null || val === '') continue;
+      let display = String(val);
+      if (f.key === 'GPSLatitude' && tags.GPSLatitudeRef) {
+        const dec = _gpsDecimal(val, tags.GPSLatitudeRef);
+        if (dec !== null) display = dec.toFixed(6) + '°';
+      } else if (f.key === 'GPSLongitude' && tags.GPSLongitudeRef) {
+        const dec = _gpsDecimal(val, tags.GPSLongitudeRef);
+        if (dec !== null) display = dec.toFixed(6) + '°';
+      } else if (f.key === 'ExposureTime' && typeof val === 'number') {
+        display = '1/' + Math.round(1/val) + 's';
+      } else if (f.key === 'FNumber' && typeof val === 'number') {
+        display = 'f/' + val;
+      } else if (f.key === 'FocalLength' && typeof val === 'number') {
+        display = val + 'mm';
+      } else if (Array.isArray(val)) {
+        display = val.join(', ');
+      }
+      found.push({ ...f, value: display });
+    }
+
+    const lat  = _gpsDecimal(tags.GPSLatitude,  tags.GPSLatitudeRef);
+    const lng  = _gpsDecimal(tags.GPSLongitude, tags.GPSLongitudeRef);
+    const hasGPS = lat !== null && lng !== null;
+
+    // GPS Alert
+    const gpsAlertEl = document.getElementById('cpt-gps-alert');
+    if (hasGPS) {
+      const mapUrl = `https://maps.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+      gpsAlertEl.hidden = false;
+      gpsAlertEl.innerHTML = `[!] GPS LOCATION DATA FOUND — THIS PHOTO REVEALS WHERE YOU WERE WHEN YOU TOOK IT<br>
+        <span class="cpt-gps-coords">${lat.toFixed(5)}, ${lng.toFixed(5)} — <a href="${_esc(mapUrl)}" target="_blank" rel="noopener" class="cpt-map-link">VIEW ON MAP</a></span>`;
+    } else {
+      gpsAlertEl.hidden = true;
+    }
+
+    // Summary bar
+    const h = found.filter(f => f.risk === 'HIGH').length;
+    const m = found.filter(f => f.risk === 'MEDIUM').length;
+    const l = found.filter(f => f.risk === 'LOW').length;
+    const summaryEl = document.getElementById('cpt-summary');
+
+    if (!found.length) {
+      summaryEl.innerHTML = '';
+      document.getElementById('cpt-table-wrap').innerHTML = `
+        <div class="cpt-clean-msg">
+          <div class="cpt-clean-title">THIS PHOTO APPEARS CLEAN</div>
+          <div class="cpt-clean-body">No metadata detected. This may mean:</div>
+          <ul class="cpt-clean-list">
+            <li>The photo was a screenshot rather than taken directly</li>
+            <li>Metadata was already stripped by your device or app</li>
+            <li>The file format does not support EXIF</li>
+          </ul>
+          <div class="cpt-clean-note">Note: some metadata may still exist that this tool cannot detect.</div>
+        </div>`;
+      document.getElementById('cpt-fix').innerHTML = _renderCPTInstructions(osSel.value);
+      HistoryStore.addTool('cpt', file.name, [{ label:'CAMERA PRIVACY TEST: CLEAN — ' + _detectOSForCPT(), url:'#', desc:'0 fields' }]);
+      renderHistory();
+      return;
+    }
+
+    summaryEl.innerHTML = `<div class="cpt-summary-bar">
+      <span class="cpt-sum-total">${found.length} FIELDS DETECTED</span>
+      <span class="cpt-sum-high">${h} HIGH RISK</span>
+      <span class="cpt-sum-med">${m} MEDIUM</span>
+      <span class="cpt-sum-low">${l} LOW</span>
+    </div>`;
+
+    // Results table
+    const tableEl = document.getElementById('cpt-table-wrap');
+    const RISK_CLS = { HIGH:'scrub-risk-high', MEDIUM:'scrub-risk-med', LOW:'scrub-risk-low' };
+    let tableHtml = '<table class="tool-data-table cpt-table"><thead><tr><th>FIELD</th><th>VALUE</th><th>RISK</th><th>WHAT IT MEANS</th></tr></thead><tbody>';
+    found.forEach((f, i) => {
+      const isGPS = f.key === 'GPSLatitude' || f.key === 'GPSLongitude';
+      tableHtml += `<tr class="${i%2?'tool-tr-alt':''}${isGPS?' cpt-gps-row':''}">
+        <td class="tool-td-key">${_esc(f.label)}</td>
+        <td class="cpt-val">${isGPS && hasGPS && (f.key==='GPSLatitude'?lat:lng) !== null
+          ? `${_esc(f.value)} <a href="https://maps.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}" target="_blank" rel="noopener" class="cpt-map-link">MAP</a>`
+          : _esc(f.value)}</td>
+        <td><span class="scrub-risk ${RISK_CLS[f.risk]||'scrub-risk-low'}">${f.risk}</span></td>
+        <td class="cpt-meaning">${_esc(f.meaning)}</td>
+      </tr>`;
+    });
+    tableHtml += '</tbody></table>';
+    tableEl.innerHTML = tableHtml;
+
+    // Fix instructions
+    document.getElementById('cpt-fix').innerHTML = _renderCPTInstructions(osSel.value);
+
+    // History
+    HistoryStore.addTool('cpt', file.name, [{ label:`CAMERA PRIVACY TEST: ${h} HIGH / ${m} MED / ${l} LOW${hasGPS?' GPS FOUND':''}`, url:'#', desc:'' }]);
+    renderHistory();
   }
 }
 
